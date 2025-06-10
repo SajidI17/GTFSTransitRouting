@@ -16,7 +16,9 @@ def ImportDataIntoDatabase(files):
         print("Starting import for table: " + file)
         fullPath = IMPORTFILEPATH + file + ".txt"
         f = open(fullPath)
-        cursor.copy_from(f, file, sep=",")
+        #cursor.copy_from(f, file, sep=",")
+        sqlStatment = "COPY " + file + " FROM STDIN WITH (FORMAT text, DELIMITER ',', NULL '')"
+        cursor.copy_expert(sqlStatment, f)
         connection.commit()
         print("Finish import for table: " + file)
 
@@ -46,7 +48,6 @@ def HaversineDistance(lat1, lon1, lat2, lon2):
 
 
 if __name__ == "__main__":
-    #fileListOne = ["routes", "stops", "trips", "stop_times", "calendar"]
-    fileListOne = ["stops"]
+    fileListOne = ["routes", "stops", "trips", "stop_times", "calendar", "calendar_dates"]
     ImportDataIntoDatabase(fileListOne)
     print("Done!")

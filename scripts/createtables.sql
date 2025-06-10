@@ -34,7 +34,7 @@ CREATE TABLE stops
   stop_id           text PRIMARY KEY,
   stop_code         text NULL,
   stop_name         text NOT NULL,
-  tts_stop_name		text NOT NULL,
+  tts_stop_name		text NULL,
   stop_desc         text NULL,
   stop_lat          double precision NOT NULL,
   stop_lon          double precision NOT NULL,
@@ -76,3 +76,9 @@ CREATE TABLE calendar
   end_date numeric(8) NOT NULL
 );
 
+CREATE TABLE calendar_dates
+(
+  service_id text,
+  date integer,
+  exception_type integer
+);
