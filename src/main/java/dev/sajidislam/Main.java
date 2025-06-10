@@ -23,27 +23,34 @@ public class Main {
         }
     }
 
+    /// For basic user input
     public static int getOriginAndDestination(){
         Scanner input = new Scanner(System.in);
         System.out.println("Please enter bus stop code of origin: ");
         int busStopOrigin = input.nextInt();
         System.out.println("Please enter bus stop code of destination: ");
         int busStopDestination = input.nextInt();
-        System.out.println("Please enter day of the week: ");
+        System.out.println("Please enter date: ");
         String weekDay = input.nextLine();
         System.out.println("Please enter the time you will leave from the origin: ");
         String time = input.nextLine();
         return 0;
     }
 
+    /// Sets the static variable serviceTypeMap with the serviceIDs that run on the user requested date
     public static void setSchedules(Connection connection, int date){
         try{
+
+            // get all service_ids for a given date
             String sqlStatement = "SELECT * FROM calendar_dates WHERE date = ?";
             PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
             preparedStatement.setInt(1,date);
             ResultSet resultSet = preparedStatement.executeQuery();
 
+            // This may not be needed. But this is getting the weekdays the serviceId is relevant for
             while (resultSet.next()){
+
+                // get weekday of services for that serviceId
                 String serviceId = resultSet.getString("service_id");
                 sqlStatement = "SELECT * FROM calendar WHERE service_id = ?";
                 preparedStatement = connection.prepareStatement(sqlStatement);
@@ -71,6 +78,8 @@ public class Main {
         }
     }
 
+
+    /// Prints compatible dates available in the database, mainly used for UI
     public static List<Integer> getAvailableDates(Connection connection){
         List<Integer> dates = new ArrayList<>();
 
@@ -90,6 +99,7 @@ public class Main {
         return dates;
     }
 
+    /// Converts a bus stop to the StopId used in the database
     public static String convertCodeToId(int busStopCode, Connection connection){
         try {
             String sqlStatement = "SELECT stop_id FROM stops WHERE stop_code = ?";
@@ -109,6 +119,7 @@ public class Main {
         return "";
     }
 
+    /// Given the date and time, returns all bus stops leaving within 20 minutes from that bus stop
     public static List<BusRecord> getAllDepartingBusses(String busStopId, String time, Connection connection){
         List<BusRecord> BusRecordList = new ArrayList<>();
         try{
@@ -130,7 +141,10 @@ public class Main {
                 ResultSet resultSet2 = preparedStatement.executeQuery();
                 while(resultSet2.next()){
 
+                    //previous code
                     //boolean isRunningCorrectWeek = serviceTypeMap.get(resultSet2.getString("service_id")).isWeekday(weekday);
+
+                    //this checks if the serviceId is for the correct date
                     boolean isRunningCorrectWeek = serviceTypeMap.containsKey(resultSet2.getString("service_id"));
 
                     if(isRunningCorrectWeek){
@@ -150,7 +164,8 @@ public class Main {
         }
         return BusRecordList;
     }
-    /// NOTE: This probably can be made more efficient
+    /// Gets the routeId when given the tripId, routeId identifies the bus.
+    /// NOTE: This probably can be made more efficient.
     /// might be worth looking into storing route_id in the stop_times table
     public static String getRouteIdFromTripId(String tripId, Connection connection){
         String result = "";
@@ -200,6 +215,7 @@ public class Main {
                     BusStop curStop = new BusStop(stopId,tripId,routeId,arrivalTime);
 
                     //todo: add math for string arrival times
+                    //todo: add logic for when an edge should form
                     busGraph.addEdge(prevStop, curStop, 1.0F);
 
                     prevStop = curStop;
@@ -213,6 +229,7 @@ public class Main {
         }
     }
 
+    /// Generates the graph that will be used by Dijkstra's algorithm
     public static void createTopologicalGraph(int busStopOrigin, String time, int date, Connection connection){
         try{
             String busStopOriginId = convertCodeToId(busStopOrigin, connection);
