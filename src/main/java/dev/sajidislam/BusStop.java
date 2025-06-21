@@ -7,16 +7,30 @@ public class BusStop {
     String tripId;
     String routeId;
     String arrivalTime;
+    String previousStopId;
 
     public BusStop(String stopCodeId, String tripId, String routeId, String arrivalTime) {
         this.stopCodeId = stopCodeId;
         this.tripId = tripId;
         this.routeId = routeId;
         this.arrivalTime = arrivalTime;
+        this.previousStopId = null;
+    }
+
+    public BusStop(String stopCodeId, String tripId, String routeId, String arrivalTime, String previousStopId) {
+        this.stopCodeId = stopCodeId;
+        this.tripId = tripId;
+        this.routeId = routeId;
+        this.arrivalTime = arrivalTime;
+        this.previousStopId = previousStopId;
     }
 
     public BusStop(){
 
+    }
+
+    public void setPreviousStopId(String previousStopId){
+        this.previousStopId = previousStopId;
     }
 
     @Override
@@ -29,5 +43,15 @@ public class BusStop {
     @Override
     public int hashCode() {
         return Objects.hashCode(stopCodeId);
+    }
+
+    @Override
+    public String toString() {
+        return "BusStop{" +
+                "stopCodeId='" + stopCodeId + '\'' +
+                ", tripId='" + tripId + '\'' +
+                ", routeId='" + routeId + '\'' +
+                ", arrivalTime='" + arrivalTime + '\'' +
+                '}';
     }
 }

@@ -12,28 +12,45 @@ public class Graph<T> {
         adjacencyList.putIfAbsent(node, new ArrayList<>());
     }
 
-    public void addEdge(T source, T destination, float weight){
+    public boolean doesNodeExist(T node){
+        return adjacencyList.containsKey(node);
+    }
+
+    public void addEdge(T source, T destination, long weight){
         //make sure nodes are added
         addNode(source);
         addNode(destination);
 
         //add edge to the source node
-        adjacencyList.get(source).add(new Edge<>(source, destination, weight));
+        adjacencyList.get(source).add(new Edge<>(destination, weight));
     }
 
     public boolean removeEdge(T source, Edge<T> edge){
         return adjacencyList.get(source).remove(edge);
     }
 
-    public static class Edge<T>{
-        T source;
-        T destination;
-        float weight;
+    @Override
+    public String toString() {
+        return "Graph{" +
+                "adjacencyList=" + adjacencyList +
+                '}';
+    }
 
-        public Edge(T source, T destination, float weight){
-            this.source = source;
+    public static class Edge<T>{
+        T destination;
+        long weight;
+
+        public Edge(T destination, long weight){
             this.destination = destination;
             this.weight = weight;
+        }
+
+        @Override
+        public String toString() {
+            return "Edge{" +
+                    "destination=" + destination +
+                    ", weight=" + weight +
+                    '}';
         }
     }
 }

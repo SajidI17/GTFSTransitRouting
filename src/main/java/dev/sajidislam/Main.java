@@ -1,6 +1,7 @@
 package dev.sajidislam;
 import java.sql.*;
 import java.util.*;
+import java.time.*;
 
 // Monday - 0, Sunday - 7
 
@@ -12,6 +13,9 @@ public class Main {
 
     public static void main(String[] args) {
         serviceTypeMap = new HashMap<>();
+
+        stringTimeDifferences("03:00:00", "02:59:59");
+        
         try{
             Class.forName("org.postgresql.Driver");
             Connection connection = DriverManager.getConnection(URL, USERNAME, PASSWORD);
@@ -189,6 +193,7 @@ public class Main {
 
         try {
             for (BusRecord busRecord : busRecordList){
+                //get the list of bus stops the bus is visiting
                 String sqlStatement = "SELECT * FROM stop_times WHERE trip_id = ? AND stop_sequence >= ?";
                 PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
                 preparedStatement.setString(1,busRecord.tripId);
@@ -197,36 +202,60 @@ public class Main {
                 BusStop prevStop = null;
                 ResultSet resultSet = preparedStatement.executeQuery();
 
-
+                //sets the previous bus stop
                 if (resultSet.next()){
-                    String stopId = resultSet.getString("stop_id");
-                    String tripId = resultSet.getString("trip_id");
-                    String routeId = getRouteIdFromTripId(tripId, connection);
-                    String arrivalTime = resultSet.getObject("arrival_time").toString();
-                    prevStop = new BusStop(stopId,tripId,routeId,arrivalTime);
+                    prevStop = convertToBusStopNode(resultSet, connection);
                 }
 
                 while(resultSet.next()){
-                    String stopId = resultSet.getString("stop_id");
-                    String tripId = resultSet.getString("trip_id");
-                    String routeId = getRouteIdFromTripId(tripId, connection);
-                    String arrivalTime = resultSet.getObject("arrival_time").toString();
+                    BusStop curStop = convertToBusStopNode(resultSet, connection);
 
-                    BusStop curStop = new BusStop(stopId,tripId,routeId,arrivalTime);
+                    //if the curStop does not exist, then can create an edge to curStop
+                    //as curStop did not exist in graph, it did not have any incoming edges, thus edge can be added without issue
+                    if(busGraph.doesNodeExist(curStop)){
+                        //we know that the prevStop variable will be defined due to resultSet.next()
+                        assert prevStop != null;
+                        curStop.setPreviousStopId(prevStop.stopCodeId);
+                        busGraph.addEdge(prevStop,curStop,stringTimeDifferences(prevStop.arrivalTime, curStop.arrivalTime));
+                        prevStop = curStop;
+                        continue;
+                    }
+                    else{
+                        //curStop already exists in graph
+                    }
 
-                    //todo: add math for string arrival times
                     //todo: add logic for when an edge should form
-                    busGraph.addEdge(prevStop, curStop, 1.0F);
+                    busGraph.addEdge(prevStop, curStop, 1L);
 
                     prevStop = curStop;
 
                 }
             }
-
-
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static BusStop convertToBusStopNode(ResultSet resultSet, Connection connection){
+        BusStop busStop = null;
+        try{
+            String stopId = resultSet.getString("stop_id");
+            String tripId = resultSet.getString("trip_id");
+            String routeId = getRouteIdFromTripId(tripId, connection);
+            String arrivalTime = resultSet.getObject("arrival_time").toString();
+
+            busStop = new BusStop(stopId,tripId,routeId,arrivalTime);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return busStop;
+    }
+
+    public static long stringTimeDifferences(String time1, String time2){
+        LocalTime t1 = LocalTime.parse(time1);
+        LocalTime t2 = LocalTime.parse(time2);
+
+        return Duration.between(t1,t2).toSeconds();
     }
 
     /// Generates the graph that will be used by Dijkstra's algorithm
