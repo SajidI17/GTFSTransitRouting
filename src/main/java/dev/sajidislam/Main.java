@@ -4,6 +4,7 @@ import java.util.*;
 import java.time.*;
 
 // Monday - 0, Sunday - 7
+//todo: convert string time to java LocalTime
 
 public class Main {
     private static final String URL = "jdbc:postgresql://localhost:5432/OCGTFS"; //Change OCGTFS to the name of the database you have
@@ -14,7 +15,6 @@ public class Main {
     public static void main(String[] args) {
         serviceTypeMap = new HashMap<>();
 
-        stringTimeDifferences("03:00:00", "02:59:59");
         
         try{
             Class.forName("org.postgresql.Driver");
@@ -189,7 +189,7 @@ public class Main {
     }
 
     public static void visitingBusStops(List<BusRecord> busRecordList, Connection connection){
-        Graph<BusStop> busGraph = new Graph<>();
+        Graph busGraph = new Graph();
 
         try {
             for (BusRecord busRecord : busRecordList){
@@ -209,12 +209,12 @@ public class Main {
 
                 while(resultSet.next()){
                     BusStop curStop = convertToBusStopNode(resultSet, connection);
-
+                    //we know that the prevStop variable will be defined due to resultSet.next()
+                    assert prevStop != null;
                     //if the curStop does not exist, then can create an edge to curStop
                     //as curStop did not exist in graph, it did not have any incoming edges, thus edge can be added without issue
-                    if(busGraph.doesNodeExist(curStop)){
-                        //we know that the prevStop variable will be defined due to resultSet.next()
-                        assert prevStop != null;
+                    if(busGraph.doesNodeExist(curStop.stopCodeId)){
+
                         curStop.setPreviousStopId(prevStop.stopCodeId);
                         busGraph.addEdge(prevStop,curStop,stringTimeDifferences(prevStop.arrivalTime, curStop.arrivalTime));
                         prevStop = curStop;
@@ -222,9 +222,20 @@ public class Main {
                     }
                     else{
                         //curStop already exists in graph
+                        BusStop currentStop = busGraph.getBusStop(curStop.stopCodeId);
+                        BusStop previousStop = busGraph.getBusStop(currentStop.previousStopId);
+
+                        boolean isEarlier = isTimeOneEarlier(curStop.arrivalTime, currentStop.arrivalTime);
+                        if(isEarlier){
+                            busGraph.removeEdge(previousStop.stopCodeId,currentStop.stopCodeId);
+                            busGraph.allBusStops.put(currentStop.stopCodeId, curStop);
+
+                            //recalculate edges
+
+                        }
+
                     }
 
-                    //todo: add logic for when an edge should form
                     busGraph.addEdge(prevStop, curStop, 1L);
 
                     prevStop = curStop;
@@ -256,6 +267,14 @@ public class Main {
         LocalTime t2 = LocalTime.parse(time2);
 
         return Duration.between(t1,t2).toSeconds();
+    }
+
+    /// returns true if the first time parameter is earlier than the second time parameter
+    public static boolean isTimeOneEarlier(String timeOne, String timeTwo){
+        LocalTime t1 = LocalTime.parse(timeOne);
+        LocalTime t2 = LocalTime.parse(timeTwo);
+
+        return t1.isBefore(t2);
     }
 
     /// Generates the graph that will be used by Dijkstra's algorithm
