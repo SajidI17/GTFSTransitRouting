@@ -25,14 +25,6 @@ public class BusStop {
         this.previousStopId = previousStopId;
     }
 
-    public BusStop(){
-
-    }
-
-    public void setPreviousStopId(String previousStopId){
-        this.previousStopId = previousStopId;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;

@@ -15,7 +15,6 @@ public class Main {
     public static void main(String[] args) {
         serviceTypeMap = new HashMap<>();
 
-        
         try{
             Class.forName("org.postgresql.Driver");
             Connection connection = DriverManager.getConnection(URL, USERNAME, PASSWORD);
@@ -188,8 +187,7 @@ public class Main {
         return result;
     }
 
-    public static void visitingBusStops(List<BusRecord> busRecordList, Connection connection){
-        Graph busGraph = new Graph();
+    public static Graph visitingBusStops(List<BusRecord> busRecordList, Graph busGraph, Connection connection){
 
         try {
             for (BusRecord busRecord : busRecordList){
@@ -214,24 +212,37 @@ public class Main {
                     //if the curStop does not exist, then can create an edge to curStop
                     //as curStop did not exist in graph, it did not have any incoming edges, thus edge can be added without issue
                     if(busGraph.doesNodeExist(curStop.stopCodeId)){
+                        //set what the previous stop is
+                        curStop.previousStopId = (prevStop.stopCodeId);
 
-                        curStop.setPreviousStopId(prevStop.stopCodeId);
+                        //add edge
                         busGraph.addEdge(prevStop,curStop,stringTimeDifferences(prevStop.arrivalTime, curStop.arrivalTime));
+
+                        //make cur the previous stop
                         prevStop = curStop;
                         continue;
                     }
                     else{
                         //curStop already exists in graph
+
+                        //get the current nodes saved in the graph
                         BusStop currentStop = busGraph.getBusStop(curStop.stopCodeId);
                         BusStop previousStop = busGraph.getBusStop(currentStop.previousStopId);
 
                         boolean isEarlier = isTimeOneEarlier(curStop.arrivalTime, currentStop.arrivalTime);
                         if(isEarlier){
+                            //as the stop is earlier, we need to adjust edges
+
+                            // remove the old edge that was connecting to the current stop
                             busGraph.removeEdge(previousStop.stopCodeId,currentStop.stopCodeId);
+
+                            //update the current bus stop with the new information
                             busGraph.allBusStops.put(currentStop.stopCodeId, curStop);
 
-                            //recalculate edges
+                            //create new edge to current bus stop
+                            busGraph.addEdge(prevStop,curStop,stringTimeDifferences(prevStop.arrivalTime, curStop.arrivalTime));
 
+                            //todo: add queue of bus stops that need to be recalculated
                         }
 
                     }
@@ -245,6 +256,8 @@ public class Main {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+
+        return busGraph;
     }
 
     public static BusStop convertToBusStopNode(ResultSet resultSet, Connection connection){
@@ -280,12 +293,27 @@ public class Main {
     /// Generates the graph that will be used by Dijkstra's algorithm
     public static void createTopologicalGraph(int busStopOrigin, String time, int date, Connection connection){
         try{
+            //create new graph
+            Graph busGraph = new Graph();
+
+            //convert stopId to something usable
             String busStopOriginId = convertCodeToId(busStopOrigin, connection);
+
+            //get all buses leaving within 20 minutes of time (each record is a single bus leaving that particular stop)
             List<BusRecord> busArrivals = getAllDepartingBusses(busStopOriginId, time, connection);
+
+            //debug
             for (BusRecord busArrival : busArrivals) {
                 System.out.println(busArrival.toString());
             }
-            visitingBusStops(busArrivals,connection);
+
+            //get the bus stops the bus is visiting and add to the graph
+            busGraph = visitingBusStops(busArrivals, busGraph, connection);
+
+            for(int i = 0;i < 2; i++){
+
+            }
+
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
