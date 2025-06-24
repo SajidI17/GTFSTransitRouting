@@ -11,10 +11,11 @@ public class Main {
     private static final String USERNAME = "postgres";
     private static final String PASSWORD = "admin";
     private static Map<String, ServiceType> serviceTypeMap;
+    private static Graph busNetwork;
 
     public static void main(String[] args) {
         serviceTypeMap = new HashMap<>();
-
+        busNetwork = new Graph();
         try{
             Class.forName("org.postgresql.Driver");
             Connection connection = DriverManager.getConnection(URL, USERNAME, PASSWORD);
@@ -123,16 +124,17 @@ public class Main {
     }
 
     /// Given the date and time, returns all bus stops leaving within 20 minutes from that bus stop
-    public static List<BusRecord> getAllDepartingBusses(String busStopId, String time, Connection connection){
+    public static List<BusRecord> getAllDepartingBusses(String busStopId, String time, String excludeTripId, Connection connection){
         List<BusRecord> BusRecordList = new ArrayList<>();
         try{
 
             //get all buses leaving a particular stop within 20 minutes of time
-            String sqlStatement = "SELECT * FROM stop_times WHERE stop_Id = ? AND arrival_time > (?::interval) AND arrival_time <= (?::interval + INTERVAL '25 minutes')";
+            String sqlStatement = "SELECT * FROM stop_times WHERE stop_Id = ? AND arrival_time > (?::interval) AND arrival_time <= (?::interval + INTERVAL '25 minutes') AND trip_id != ?";
             PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
             preparedStatement.setString(1,busStopId);
             preparedStatement.setObject(2, time);
             preparedStatement.setObject(3, time);
+            preparedStatement.setString(4,excludeTripId);
             ResultSet resultSet = preparedStatement.executeQuery();
 
             //check that these buses are running on that particular day
@@ -187,8 +189,8 @@ public class Main {
         return result;
     }
 
-    public static Graph visitingBusStops(List<BusRecord> busRecordList, Graph busGraph, Connection connection){
-
+    public static List<BusStop> visitingBusStops(List<BusRecord> busRecordList, Connection connection){
+        List<BusStop> busStopsAdded = new ArrayList<>();
         try {
             for (BusRecord busRecord : busRecordList){
                 //get the list of bus stops the bus is visiting
@@ -208,57 +210,74 @@ public class Main {
                 while(resultSet.next()){
                     BusStop curStop = convertToBusStopNode(resultSet, connection);
                     //we know that the prevStop variable will be defined due to resultSet.next()
+
+                    //debug
+                    if(curStop.stopCodeId.equals("CB990")){
+                        System.out.println("==========================STOP FOUND==========================");
+                    }
+
                     assert prevStop != null;
                     //if the curStop does not exist, then can create an edge to curStop
                     //as curStop did not exist in graph, it did not have any incoming edges, thus edge can be added without issue
-                    if(busGraph.doesNodeExist(curStop.stopCodeId)){
+                    if(!busNetwork.doesNodeExist(curStop.stopCodeId)){
                         //set what the previous stop is
                         curStop.previousStopId = (prevStop.stopCodeId);
 
                         //add edge
-                        busGraph.addEdge(prevStop,curStop,stringTimeDifferences(prevStop.arrivalTime, curStop.arrivalTime));
+                        busNetwork.addEdge(prevStop,curStop,stringTimeDifferences(prevStop.arrivalTime, curStop.arrivalTime));
+
+                        //add to list noting new stop was added to graph
+                        busStopsAdded.add(curStop);
 
                         //make cur the previous stop
                         prevStop = curStop;
-                        continue;
                     }
                     else{
                         //curStop already exists in graph
 
                         //get the current nodes saved in the graph
-                        BusStop currentStop = busGraph.getBusStop(curStop.stopCodeId);
-                        BusStop previousStop = busGraph.getBusStop(currentStop.previousStopId);
+                        BusStop currentStop = busNetwork.getBusStop(curStop.stopCodeId);
+
+                        //todo: this is a temporarily fix, accounting for first BusStop which would have no previousStopId set
+                        if(currentStop.previousStopId == null){
+                            continue;
+                        }
+
+                        BusStop previousStop = busNetwork.getBusStop(currentStop.previousStopId);
 
                         boolean isEarlier = isTimeOneEarlier(curStop.arrivalTime, currentStop.arrivalTime);
                         if(isEarlier){
                             //as the stop is earlier, we need to adjust edges
 
                             // remove the old edge that was connecting to the current stop
-                            busGraph.removeEdge(previousStop.stopCodeId,currentStop.stopCodeId);
+                            busNetwork.removeEdge(previousStop.stopCodeId,currentStop.stopCodeId);
 
                             //update the current bus stop with the new information
-                            busGraph.allBusStops.put(currentStop.stopCodeId, curStop);
+                            busNetwork.allBusStops.put(currentStop.stopCodeId, curStop);
 
                             //create new edge to current bus stop
-                            busGraph.addEdge(prevStop,curStop,stringTimeDifferences(prevStop.arrivalTime, curStop.arrivalTime));
+                            busNetwork.addEdge(prevStop,curStop,stringTimeDifferences(prevStop.arrivalTime, curStop.arrivalTime));
+
+                            //add to list noting new stop was added to graph
+                            busStopsAdded.add(curStop);
+
+                            //make cur the previous stop
+                            prevStop = curStop;
 
                             //todo: add queue of bus stops that need to be recalculated
                         }
 
                     }
-
-                    busGraph.addEdge(prevStop, curStop, 1L);
-
-                    prevStop = curStop;
-
                 }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
-        return busGraph;
+        return busStopsAdded;
     }
+
+
 
     public static BusStop convertToBusStopNode(ResultSet resultSet, Connection connection){
         BusStop busStop = null;
@@ -266,7 +285,7 @@ public class Main {
             String stopId = resultSet.getString("stop_id");
             String tripId = resultSet.getString("trip_id");
             String routeId = getRouteIdFromTripId(tripId, connection);
-            String arrivalTime = resultSet.getObject("arrival_time").toString();
+            String arrivalTime = resultSet.getTime("arrival_time").toString();
 
             busStop = new BusStop(stopId,tripId,routeId,arrivalTime);
         } catch (Exception e) {
@@ -293,14 +312,11 @@ public class Main {
     /// Generates the graph that will be used by Dijkstra's algorithm
     public static void createTopologicalGraph(int busStopOrigin, String time, int date, Connection connection){
         try{
-            //create new graph
-            Graph busGraph = new Graph();
-
             //convert stopId to something usable
             String busStopOriginId = convertCodeToId(busStopOrigin, connection);
 
             //get all buses leaving within 20 minutes of time (each record is a single bus leaving that particular stop)
-            List<BusRecord> busArrivals = getAllDepartingBusses(busStopOriginId, time, connection);
+            List<BusRecord> busArrivals = getAllDepartingBusses(busStopOriginId, time, "", connection);
 
             //debug
             for (BusRecord busArrival : busArrivals) {
@@ -308,10 +324,16 @@ public class Main {
             }
 
             //get the bus stops the bus is visiting and add to the graph
-            busGraph = visitingBusStops(busArrivals, busGraph, connection);
+            List<BusStop> busStopList = visitingBusStops(busArrivals, connection);
 
+            //Since we only want to find routes with at most 3 connections, we loop 2 more times
             for(int i = 0;i < 2; i++){
-
+                List<BusStop> tempBusList = new ArrayList<>();
+                for (BusStop busStop : busStopList){
+                    List<BusRecord> tempBusArrivals = getAllDepartingBusses(busStop.stopCodeId, time, busStop.tripId, connection);
+                    tempBusList = visitingBusStops(tempBusArrivals, connection);
+                }
+                busStopList = tempBusList;
             }
 
         } catch (Exception e) {

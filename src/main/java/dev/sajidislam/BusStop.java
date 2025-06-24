@@ -39,11 +39,21 @@ public class BusStop {
 
     @Override
     public String toString() {
+        if(previousStopId == null){
+            return "BusStop{" +
+                    "stopCodeId='" + stopCodeId + '\'' +
+                    ", tripId='" + tripId + '\'' +
+                    ", routeId='" + routeId + '\'' +
+                    ", arrivalTime='" + arrivalTime + '\'' +
+                    '}';
+        }
         return "BusStop{" +
                 "stopCodeId='" + stopCodeId + '\'' +
                 ", tripId='" + tripId + '\'' +
                 ", routeId='" + routeId + '\'' +
                 ", arrivalTime='" + arrivalTime + '\'' +
+                ", previousStopId='" + previousStopId + '\'' +
                 '}';
+
     }
 }
