@@ -44,6 +44,16 @@ def HaversineDistance(lat1, lon1, lat2, lon2):
     distance = 2 * r * math.asin(math.sqrt(a))
     return distance
 
+
+def CreateSuperNodes():
+    busStations = ["Blair", "St-Laurent", "Tremblay", "Hurdman","Lees","uOttawa","Rideau","Parliament","Lyon","Pimisi","Bayview","Tunney's Pasture"]
+    busStationCodes = ["3027","3025","3024","3023","3022","3021","3009","3052","3051","3010","3060","3011"]
+
+    if(busStations.count != busStationCodes.count):
+        raise Exception("CreateSuperNodes arrays are not equal")
+    
+    for i in range(len(busStations)):
+        print(busStations[i])
     
 
 

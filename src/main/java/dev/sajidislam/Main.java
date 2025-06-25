@@ -12,10 +12,14 @@ public class Main {
     private static final String PASSWORD = "admin";
     private static Map<String, ServiceType> serviceTypeMap;
     private static Graph busNetwork;
+    private static List<String> excludeTripIds;
 
     public static void main(String[] args) {
+        long startTime = System.nanoTime();
         serviceTypeMap = new HashMap<>();
         busNetwork = new Graph();
+        excludeTripIds = new ArrayList<>();
+        excludeTripIds.add("");
         try{
             Class.forName("org.postgresql.Driver");
             Connection connection = DriverManager.getConnection(URL, USERNAME, PASSWORD);
@@ -25,6 +29,9 @@ public class Main {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+        long endTime = System.nanoTime();
+        long totalRunTime = (endTime - startTime) / 1000000000;
+        System.out.println("\nTOTAL RUNNING TIME OF ALGORITHM: " + totalRunTime);
     }
 
     /// For basic user input
@@ -124,22 +131,29 @@ public class Main {
     }
 
     /// Given the date and time, returns all bus stops leaving within 20 minutes from that bus stop
-    public static List<BusRecord> getAllDepartingBusses(String busStopId, String time, String excludeTripId, Connection connection){
+    public static List<BusRecord> getAllDepartingBusses(String busStopId, String time, Connection connection){
         List<BusRecord> BusRecordList = new ArrayList<>();
         try{
 
+            //set sql array
+            Array sqlArr = connection.createArrayOf("TEXT", excludeTripIds.toArray());
+
             //get all buses leaving a particular stop within 20 minutes of time
-            String sqlStatement = "SELECT * FROM stop_times WHERE stop_Id = ? AND arrival_time > (?::interval) AND arrival_time <= (?::interval + INTERVAL '25 minutes') AND trip_id != ?";
+            String sqlStatement = "SELECT * FROM stop_times WHERE stop_Id = ? AND arrival_time > (?::interval) AND arrival_time <= (?::interval + INTERVAL '25 minutes') AND NOT (trip_id = ANY(?))";
             PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
             preparedStatement.setString(1,busStopId);
             preparedStatement.setObject(2, time);
             preparedStatement.setObject(3, time);
-            preparedStatement.setString(4,excludeTripId);
+            preparedStatement.setArray(4, sqlArr);
             ResultSet resultSet = preparedStatement.executeQuery();
 
             //check that these buses are running on that particular day
             while (resultSet.next()) {
                 String tripId = resultSet.getString("trip_id");
+
+                //add to list to exclude from future queries
+                excludeTripIds.add(tripId);
+
                 sqlStatement = "SELECT * FROM trips WHERE trip_id = ?";
                 preparedStatement = connection.prepareStatement(sqlStatement);
                 preparedStatement.setString(1,tripId);
@@ -316,7 +330,7 @@ public class Main {
             String busStopOriginId = convertCodeToId(busStopOrigin, connection);
 
             //get all buses leaving within 20 minutes of time (each record is a single bus leaving that particular stop)
-            List<BusRecord> busArrivals = getAllDepartingBusses(busStopOriginId, time, "", connection);
+            List<BusRecord> busArrivals = getAllDepartingBusses(busStopOriginId, time, connection);
 
             //debug
             for (BusRecord busArrival : busArrivals) {
@@ -330,7 +344,7 @@ public class Main {
             for(int i = 0;i < 2; i++){
                 List<BusStop> tempBusList = new ArrayList<>();
                 for (BusStop busStop : busStopList){
-                    List<BusRecord> tempBusArrivals = getAllDepartingBusses(busStop.stopCodeId, time, busStop.tripId, connection);
+                    List<BusRecord> tempBusArrivals = getAllDepartingBusses(busStop.stopCodeId, busStop.arrivalTime, connection);
                     tempBusList = visitingBusStops(tempBusArrivals, connection);
                 }
                 busStopList = tempBusList;
