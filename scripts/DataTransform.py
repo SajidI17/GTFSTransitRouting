@@ -32,7 +32,7 @@ def AddZero(inputPath, files, outputPath):
 
 if __name__ == "__main__":
     absolutePath = os.path.dirname(__file__)
-    fileListOne = ["routes.txt", "stops.txt", "trips.txt", "stop_times.txt", "calendar.txt", "calendar_dates"]
+    fileListOne = ["routes.txt", "stops.txt", "trips.txt", "stop_times.txt", "calendar.txt", "calendar_dates.txt"]
     iFile = os.path.join(absolutePath, '..\\GTFS dump\\')
     oFile = os.path.join(absolutePath, '..\\GTFS dump\\Output\\')
     AddZero(iFile, fileListOne, oFile)

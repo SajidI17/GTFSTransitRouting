@@ -23,6 +23,7 @@ def ImportDataIntoDatabase(files):
         print("Finish import for table: " + file)
 
 def BusStopDistances():
+    print("Starting creation of transfers table")
     busstops = []
     connection = psycopg2.connect(database=DATABASENAME, user=USER, password=PASSWORD, host=HOST, port=PORT)
     cursor = connection.cursor()
@@ -31,12 +32,16 @@ def BusStopDistances():
     for i in range(len(result)):
         for j in range(i + 1, len(result)):
             distance = HaversineDistance(result[i][5], result[i][6], result[j][5], result[j][6])
-            if(distance <= 0.5):
-                busstops.append((result[i][2],result[j][2]))
+            if(distance <= 0.15):
+                busstops.append((result[i][0],result[j][0]))
+                cursor.execute("INSERT INTO transfers VALUES (%s,%s,6)", (result[i][0], result[j][0]))
+    connection.commit()
+    print(str(len(busstops)) + " records inserted into transfers table")
     return busstops
 
 
 # Haversine Formula derived from Wikipedia https://en.wikipedia.org/wiki/Haversine_formula
+# Returns distance in km
 def HaversineDistance(lat1, lon1, lat2, lon2):
     r = 6371
     p = math.pi / 180
@@ -53,11 +58,16 @@ def CreateSuperNodes():
         raise Exception("CreateSuperNodes arrays are not equal")
     
     for i in range(len(busStations)):
-        print(busStations[i])
+        connection = psycopg2.connect(database=DATABASENAME, user=USER, password=PASSWORD, host=HOST, port=PORT)
+        cursor = connection.cursor()
+        cursor.execute("UPDATE stops SET stop_id = " + busStations[i].upper() + "NODE WHERE stop_code = " + busStationCodes[i])
     
 
 
 if __name__ == "__main__":
-    fileListOne = ["routes", "stops", "trips", "stop_times", "calendar", "calendar_dates"]
+    #fileListOne = ["routes", "stops", "trips", "stop_times", "calendar", "calendar_dates"]
+    fileListOne = ["stops"]
     ImportDataIntoDatabase(fileListOne)
+
+    BusStopDistances()
     print("Done!")

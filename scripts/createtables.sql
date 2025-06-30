@@ -82,3 +82,10 @@ CREATE TABLE calendar_dates
   date integer,
   exception_type integer
 );
+
+CREATE TABLE transfers
+(
+  stop_id_start text NOT NULL,
+  stop_id_end text NOT NULL,
+  time_in_minutes int
+);

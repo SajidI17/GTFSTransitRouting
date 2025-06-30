@@ -1,5 +1,6 @@
 package dev.sajidislam;
 import java.sql.*;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.time.*;
 
@@ -233,54 +234,14 @@ public class Main {
                     assert prevStop != null;
                     //if the curStop does not exist, then can create an edge to curStop
                     //as curStop did not exist in graph, it did not have any incoming edges, thus edge can be added without issue
-                    if(!busNetwork.doesNodeExist(curStop.stopCodeId)){
-                        //set what the previous stop is
-                        curStop.previousStopId = (prevStop.stopCodeId);
 
-                        //add edge
-                        busNetwork.addEdge(prevStop,curStop,stringTimeDifferences(prevStop.arrivalTime, curStop.arrivalTime));
-
-                        //add to list noting new stop was added to graph
+                    //if something is added to graph then
+                    //1. append to busStopsAdded list
+                    //2. set prevStop = curStop;
+                    boolean isAdded = graphAddBusStopCheck(prevStop, curStop);
+                    if(isAdded){
                         busStopsAdded.add(curStop);
-
-                        //make cur the previous stop
                         prevStop = curStop;
-                    }
-                    else{
-                        //curStop already exists in graph
-
-                        //get the current nodes saved in the graph
-                        BusStop currentStop = busNetwork.getBusStop(curStop.stopCodeId);
-
-                        //todo: this is a temporarily fix, accounting for first BusStop which would have no previousStopId set
-                        if(currentStop.previousStopId == null){
-                            continue;
-                        }
-
-                        BusStop previousStop = busNetwork.getBusStop(currentStop.previousStopId);
-
-                        boolean isEarlier = isTimeOneEarlier(curStop.arrivalTime, currentStop.arrivalTime);
-                        if(isEarlier){
-                            //as the stop is earlier, we need to adjust edges
-
-                            // remove the old edge that was connecting to the current stop
-                            busNetwork.removeEdge(previousStop.stopCodeId,currentStop.stopCodeId);
-
-                            //update the current bus stop with the new information
-                            busNetwork.allBusStops.put(currentStop.stopCodeId, curStop);
-
-                            //create new edge to current bus stop
-                            busNetwork.addEdge(prevStop,curStop,stringTimeDifferences(prevStop.arrivalTime, curStop.arrivalTime));
-
-                            //add to list noting new stop was added to graph
-                            busStopsAdded.add(curStop);
-
-                            //make cur the previous stop
-                            prevStop = curStop;
-
-                            //todo: add queue of bus stops that need to be recalculated
-                        }
-
                     }
                 }
             }
@@ -289,6 +250,50 @@ public class Main {
         }
 
         return busStopsAdded;
+    }
+
+    public static boolean graphAddBusStopCheck(BusStop prevStop, BusStop curStop){
+        //if the curStop does not exist, then can create an edge to curStop
+        //as curStop did not exist in graph, it did not have any incoming edges, thus edge can be added without issue
+        if(!busNetwork.doesNodeExist(curStop.stopCodeId)){
+            //set what the previous stop is
+            curStop.previousStopId = (prevStop.stopCodeId);
+
+            //add edge
+            busNetwork.addEdge(prevStop,curStop,stringTimeDifferences(prevStop.arrivalTime, curStop.arrivalTime));
+
+            return true;
+        }
+        else{
+            //curStop already exists in graph
+
+            //get the current nodes saved in the graph
+            BusStop currentStop = busNetwork.getBusStop(curStop.stopCodeId);
+
+            //todo: this is a temporarily fix, accounting for first BusStop which would have no previousStopId set
+            if(currentStop.previousStopId == null){
+                return false;
+            }
+
+            BusStop previousStop = busNetwork.getBusStop(currentStop.previousStopId);
+
+            boolean isEarlier = isTimeOneEarlier(curStop.arrivalTime, currentStop.arrivalTime);
+            if(isEarlier){
+                //as the stop is earlier, we need to adjust edges
+
+                // remove the old edge that was connecting to the current stop
+                busNetwork.removeEdge(previousStop.stopCodeId,currentStop.stopCodeId);
+
+                //update the current bus stop with the new information
+                busNetwork.allBusStops.put(currentStop.stopCodeId, curStop);
+
+                //create new edge to current bus stop
+                busNetwork.addEdge(prevStop,curStop,stringTimeDifferences(prevStop.arrivalTime, curStop.arrivalTime));
+
+                return true;
+            }
+        }
+        return false;
     }
 
 
@@ -323,6 +328,35 @@ public class Main {
         return t1.isBefore(t2);
     }
 
+    public static List<BusStop> findTransfers(List<BusStop> busRecordList, Connection connection){
+        List<BusStop> busStopsAdded = new ArrayList<>();
+
+        try{
+            for (BusStop busStop : busRecordList){
+                String sqlStatement = "SELECT * FROM transfers WHERE stop_id_start = ?";
+                PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
+                preparedStatement.setString(1,busStop.stopCodeId);
+                ResultSet resultSet = preparedStatement.executeQuery();
+
+                while(resultSet.next()){
+                    String stopId = resultSet.getString("stop_id_end");
+                    int travelTime = resultSet.getInt("time_in_minutes");
+
+                    //specify pattern for local time
+                    DateTimeFormatter timeFormat = DateTimeFormatter.ofPattern("HH:mm:ss");
+                    LocalTime t1 = LocalTime.parse(busStop.arrivalTime);
+                    String newArrivalTime = t1.plusMinutes(travelTime).format(timeFormat);
+
+                    BusStop curStop = new BusStop(stopId,"Walking","Walking",newArrivalTime,busStop.stopCodeId);
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        return busStopsAdded;
+    }
+
     /// Generates the graph that will be used by Dijkstra's algorithm
     public static void createTopologicalGraph(int busStopOrigin, String time, int date, Connection connection){
         try{
@@ -349,6 +383,8 @@ public class Main {
                 }
                 busStopList = tempBusList;
             }
+
+            System.out.println("Done");
 
         } catch (Exception e) {
             throw new RuntimeException(e);
