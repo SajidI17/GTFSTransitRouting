@@ -132,15 +132,15 @@ public class Main {
     }
 
     /// Given the date and time, returns all bus stops leaving within 20 minutes from that bus stop
-    public static List<BusRecord> getAllDepartingBusses(String busStopId, String time, Connection connection){
+    public static List<BusRecord> getAllDepartingBusses(String busStopId, String time, int minutes, Connection connection){
         List<BusRecord> BusRecordList = new ArrayList<>();
         try{
 
             //set sql array
             Array sqlArr = connection.createArrayOf("TEXT", excludeTripIds.toArray());
 
-            //get all buses leaving a particular stop within 20 minutes of time
-            String sqlStatement = "SELECT * FROM stop_times WHERE stop_Id = ? AND arrival_time > (?::interval) AND arrival_time <= (?::interval + INTERVAL '25 minutes') AND NOT (trip_id = ANY(?))";
+            //get all buses leaving a particular stop within x minutes of time
+            String sqlStatement = "SELECT * FROM stop_times WHERE stop_Id = ? AND arrival_time > (?::interval) AND arrival_time <= (?::interval + INTERVAL '"+ minutes + " minutes') AND NOT (trip_id = ANY(?))";
             PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
             preparedStatement.setString(1,busStopId);
             preparedStatement.setObject(2, time);
@@ -328,18 +328,21 @@ public class Main {
         return t1.isBefore(t2);
     }
 
+    /// given a list of bus stops, finds transfers between different bus stops within 0.15km of each other
     public static List<BusStop> findTransfers(List<BusStop> busRecordList, Connection connection){
         List<BusStop> busStopsAdded = new ArrayList<>();
 
         try{
             for (BusStop busStop : busRecordList){
-                String sqlStatement = "SELECT * FROM transfers WHERE stop_id_start = ?";
+                String sqlStatement = "SELECT CASE WHEN stop_id_start = ? THEN stop_id_end ELSE stop_id_start END as stop_id, time_in_minutes FROM transfers WHERE stop_id_start = ? OR stop_id_end = ?";
                 PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
                 preparedStatement.setString(1,busStop.stopCodeId);
+                preparedStatement.setString(2,busStop.stopCodeId);
+                preparedStatement.setString(3,busStop.stopCodeId);
                 ResultSet resultSet = preparedStatement.executeQuery();
 
                 while(resultSet.next()){
-                    String stopId = resultSet.getString("stop_id_end");
+                    String stopId = resultSet.getString("stop_id");
                     int travelTime = resultSet.getInt("time_in_minutes");
 
                     //specify pattern for local time
@@ -348,6 +351,11 @@ public class Main {
                     String newArrivalTime = t1.plusMinutes(travelTime).format(timeFormat);
 
                     BusStop curStop = new BusStop(stopId,"Walking","Walking",newArrivalTime,busStop.stopCodeId);
+                    boolean isAdded = graphAddBusStopCheck(busStop,curStop);
+
+                    if(isAdded){
+                        busStopsAdded.add(curStop);
+                    }
                 }
             }
         } catch (Exception e) {
@@ -364,7 +372,7 @@ public class Main {
             String busStopOriginId = convertCodeToId(busStopOrigin, connection);
 
             //get all buses leaving within 20 minutes of time (each record is a single bus leaving that particular stop)
-            List<BusRecord> busArrivals = getAllDepartingBusses(busStopOriginId, time, connection);
+            List<BusRecord> busArrivals = getAllDepartingBusses(busStopOriginId, time, 30, connection);
 
             //debug
             for (BusRecord busArrival : busArrivals) {
@@ -372,19 +380,31 @@ public class Main {
             }
 
             //get the bus stops the bus is visiting and add to the graph
+            //busStopList records all bus stops that were added to the graph in an iteration
             List<BusStop> busStopList = visitingBusStops(busArrivals, connection);
+
+            //get walking transfers and add to the graph
+            //also add bus stops added to the list
+            busStopList.addAll(findTransfers(busStopList,connection));
 
             //Since we only want to find routes with at most 3 connections, we loop 2 more times
             for(int i = 0;i < 2; i++){
                 List<BusStop> tempBusList = new ArrayList<>();
+                //for each bus stop added to graph, find if any of the bus stops has a trip not yet added to the graph
+                List<BusRecord> tempBusArrivals = new ArrayList<>();
                 for (BusStop busStop : busStopList){
-                    List<BusRecord> tempBusArrivals = getAllDepartingBusses(busStop.stopCodeId, busStop.arrivalTime, connection);
-                    tempBusList = visitingBusStops(tempBusArrivals, connection);
+                    //get all departing buses from a bus stop recently added to graph
+                    tempBusArrivals.addAll(getAllDepartingBusses(busStop.stopCodeId, busStop.arrivalTime, 15, connection));
                 }
+                //add bus stops to graph, maintain a list containing bus stops added to the graph
+                tempBusList.addAll(visitingBusStops(tempBusArrivals, connection));
+                //get walking transfers, also add to list
+                tempBusList.addAll(findTransfers(tempBusList,connection));
+
                 busStopList = tempBusList;
             }
 
-            System.out.println("Done");
+            System.out.println("Graph allBusStops size: " + busNetwork.allBusStops.size() + "\nGraph allBusStops size: " + busNetwork.adjacencyList.size());
 
         } catch (Exception e) {
             throw new RuntimeException(e);

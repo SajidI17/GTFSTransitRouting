@@ -27,16 +27,17 @@ def BusStopDistances():
     busstops = []
     connection = psycopg2.connect(database=DATABASENAME, user=USER, password=PASSWORD, host=HOST, port=PORT)
     cursor = connection.cursor()
-    cursor.execute("SELECT * FROM stops")
+    cursor.execute("SELECT * FROM stops WHERE parent_station IS NOT NULL")
     result = cursor.fetchall()
     for i in range(len(result)):
         for j in range(i + 1, len(result)):
+            if(result[i][10] != result[j][10]):
+                continue
             distance = HaversineDistance(result[i][5], result[i][6], result[j][5], result[j][6])
-            if(distance <= 0.15):
+            if(distance <= 0.5):
                 busstops.append((result[i][0],result[j][0]))
                 cursor.execute("INSERT INTO transfers VALUES (%s,%s,6)", (result[i][0], result[j][0]))
     connection.commit()
-    print(str(len(busstops)) + " records inserted into transfers table")
     return busstops
 
 
@@ -69,5 +70,6 @@ if __name__ == "__main__":
     fileListOne = ["stops"]
     ImportDataIntoDatabase(fileListOne)
 
-    BusStopDistances()
+    addedStops = BusStopDistances()
+    print(str(len(addedStops)) + " records inserted into transfers table")
     print("Done!")
