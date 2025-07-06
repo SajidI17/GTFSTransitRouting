@@ -204,8 +204,7 @@ public class Main {
         return result;
     }
 
-    public static List<BusStop> visitingBusStops(List<BusRecord> busRecordList, Connection connection){
-        List<BusStop> busStopsAdded = new ArrayList<>();
+    public static Map<String, BusStop> visitingBusStops(List<BusRecord> busRecordList, Map<String, BusStop> busStopUpdate, Connection connection){
         try {
             for (BusRecord busRecord : busRecordList){
                 //get the list of bus stops the bus is visiting
@@ -226,11 +225,6 @@ public class Main {
                     BusStop curStop = convertToBusStopNode(resultSet, connection);
                     //we know that the prevStop variable will be defined due to resultSet.next()
 
-                    //debug
-                    if(curStop.stopCodeId.equals("CB990")){
-                        System.out.println("==========================STOP FOUND==========================");
-                    }
-
                     assert prevStop != null;
                     //if the curStop does not exist, then can create an edge to curStop
                     //as curStop did not exist in graph, it did not have any incoming edges, thus edge can be added without issue
@@ -240,7 +234,8 @@ public class Main {
                     //2. set prevStop = curStop;
                     boolean isAdded = graphAddBusStopCheck(prevStop, curStop);
                     if(isAdded){
-                        busStopsAdded.add(curStop);
+                        busStopUpdate.put(curStop.stopCodeId,curStop);
+                        //busStopsAdded.add(curStop);
                         prevStop = curStop;
                     }
                 }
@@ -249,7 +244,7 @@ public class Main {
             throw new RuntimeException(e);
         }
 
-        return busStopsAdded;
+        return busStopUpdate;
     }
 
     public static boolean graphAddBusStopCheck(BusStop prevStop, BusStop curStop){
@@ -283,6 +278,9 @@ public class Main {
 
                 // remove the old edge that was connecting to the current stop
                 busNetwork.removeEdge(previousStop.stopCodeId,currentStop.stopCodeId);
+
+                //update new previous stop for curStop
+                curStop.previousStopId = previousStop.stopCodeId;
 
                 //update the current bus stop with the new information
                 busNetwork.allBusStops.put(currentStop.stopCodeId, curStop);
@@ -329,11 +327,10 @@ public class Main {
     }
 
     /// given a list of bus stops, finds transfers between different bus stops within 0.15km of each other
-    public static List<BusStop> findTransfers(List<BusStop> busRecordList, Connection connection){
-        List<BusStop> busStopsAdded = new ArrayList<>();
-
+    public static Map<String, BusStop> findTransfers(Map<String, BusStop> busStopUpdate, Connection connection){
+        List<BusStop> busStopList = new ArrayList<>();
         try{
-            for (BusStop busStop : busRecordList){
+            for (BusStop busStop : busStopUpdate.values()){
                 String sqlStatement = "SELECT CASE WHEN stop_id_start = ? THEN stop_id_end ELSE stop_id_start END as stop_id, time_in_minutes FROM transfers WHERE stop_id_start = ? OR stop_id_end = ?";
                 PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
                 preparedStatement.setString(1,busStop.stopCodeId);
@@ -354,18 +351,22 @@ public class Main {
                     boolean isAdded = graphAddBusStopCheck(busStop,curStop);
 
                     if(isAdded){
-                        busStopsAdded.add(curStop);
+                        busStopList.add(curStop);
+                        //busStopsAdded.add(curStop);
                     }
                 }
+            }
+            for(BusStop busStop : busStopList){
+                busStopUpdate.put(busStop.stopCodeId, busStop);
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
-        return busStopsAdded;
+        return busStopUpdate;
     }
 
-    /// Generates the graph that will be used by Dijkstra's algorithm
+    /// Generates the graph that will be used to find route
     public static void createTopologicalGraph(int busStopOrigin, String time, int date, Connection connection){
         try{
             //convert stopId to something usable
@@ -379,32 +380,44 @@ public class Main {
                 System.out.println(busArrival.toString());
             }
 
+            Map<String, BusStop> busStopUpdate = new HashMap<>();
+
             //get the bus stops the bus is visiting and add to the graph
             //busStopList records all bus stops that were added to the graph in an iteration
-            List<BusStop> busStopList = visitingBusStops(busArrivals, connection);
+            visitingBusStops(busArrivals, busStopUpdate, connection);
 
             //get walking transfers and add to the graph
             //also add bus stops added to the list
-            busStopList.addAll(findTransfers(busStopList,connection));
+            findTransfers(busStopUpdate, connection);
+
 
             //Since we only want to find routes with at most 3 connections, we loop 2 more times
             for(int i = 0;i < 2; i++){
-                List<BusStop> tempBusList = new ArrayList<>();
+                Map<String, BusStop> tempBusList = new HashMap<>();
                 //for each bus stop added to graph, find if any of the bus stops has a trip not yet added to the graph
                 List<BusRecord> tempBusArrivals = new ArrayList<>();
-                for (BusStop busStop : busStopList){
+                for (BusStop busStop : busStopUpdate.values()){
                     //get all departing buses from a bus stop recently added to graph
                     tempBusArrivals.addAll(getAllDepartingBusses(busStop.stopCodeId, busStop.arrivalTime, 15, connection));
                 }
                 //add bus stops to graph, maintain a list containing bus stops added to the graph
-                tempBusList.addAll(visitingBusStops(tempBusArrivals, connection));
+                visitingBusStops(tempBusArrivals, tempBusList, connection);
                 //get walking transfers, also add to list
-                tempBusList.addAll(findTransfers(tempBusList,connection));
+                findTransfers(tempBusList,connection);
 
-                busStopList = tempBusList;
+                busStopUpdate = tempBusList;
             }
 
             System.out.println("Graph allBusStops size: " + busNetwork.allBusStops.size() + "\nGraph allBusStops size: " + busNetwork.adjacencyList.size());
+            if(busNetwork.doesNodeExist("10738")){
+                BusStop testStop = busNetwork.getBusStop("10738");
+                while(testStop.previousStopId != null){
+                    System.out.println(testStop);
+                    testStop = busNetwork.getBusStop(testStop.previousStopId);
+                }
+                System.out.println(testStop);
+            }
+
 
         } catch (Exception e) {
             throw new RuntimeException(e);

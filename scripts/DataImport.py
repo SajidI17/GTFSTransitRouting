@@ -8,7 +8,6 @@ HOST = "localhost"
 PORT = 5432
 IMPORTFILEPATH = os.path.join(os.path.dirname(__file__), '..\\GTFS dump\\Output\\')
 
-
 def ImportDataIntoDatabase(files):
     connection = psycopg2.connect(database=DATABASENAME, user=USER, password=PASSWORD, host=HOST, port=PORT)
     cursor = connection.cursor()
@@ -21,6 +20,8 @@ def ImportDataIntoDatabase(files):
         cursor.copy_expert(sqlStatment, f)
         connection.commit()
         print("Finish import for table: " + file)
+    cursor.close()
+    connection.close()
 
 def BusStopDistances():
     print("Starting creation of transfers table")
@@ -38,6 +39,8 @@ def BusStopDistances():
                 busstops.append((result[i][0],result[j][0]))
                 cursor.execute("INSERT INTO transfers VALUES (%s,%s,6)", (result[i][0], result[j][0]))
     connection.commit()
+    cursor.close()
+    connection.close()
     return busstops
 
 
@@ -51,18 +54,14 @@ def HaversineDistance(lat1, lon1, lat2, lon2):
     return distance
 
 
-def CreateSuperNodes():
-    busStations = ["Blair", "St-Laurent", "Tremblay", "Hurdman","Lees","uOttawa","Rideau","Parliament","Lyon","Pimisi","Bayview","Tunney's Pasture"]
-    busStationCodes = ["3027","3025","3024","3023","3022","3021","3009","3052","3051","3010","3060","3011"]
-
-    if(busStations.count != busStationCodes.count):
-        raise Exception("CreateSuperNodes arrays are not equal")
-    
-    for i in range(len(busStations)):
-        connection = psycopg2.connect(database=DATABASENAME, user=USER, password=PASSWORD, host=HOST, port=PORT)
-        cursor = connection.cursor()
-        cursor.execute("UPDATE stops SET stop_id = " + busStations[i].upper() + "NODE WHERE stop_code = " + busStationCodes[i])
-    
+def CreateIndex():
+    connection = psycopg2.connect(database=DATABASENAME, user=USER, password=PASSWORD, host=HOST, port=PORT)
+    cursor = connection.cursor()
+    cursor.execute("CREATE INDEX IF NOT EXISTS indx_stop_times_stop_id_arrival_time ON stop_times (stop_id, arrival_time)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS indx_stop_times_trip_id ON stop_times (trip_id)")
+    connection.commit()
+    cursor.close()
+    connection.close()
 
 
 if __name__ == "__main__":
@@ -72,4 +71,8 @@ if __name__ == "__main__":
 
     addedStops = BusStopDistances()
     print(str(len(addedStops)) + " records inserted into transfers table")
-    print("Done!")
+
+    print("Creating necessary indexes")
+    CreateIndex()
+
+    print("Completed!")
