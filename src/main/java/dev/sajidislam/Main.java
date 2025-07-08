@@ -26,13 +26,17 @@ public class Main {
             Connection connection = DriverManager.getConnection(URL, USERNAME, PASSWORD);
             int date = 20250603;
             setSchedules(connection, date);
-            createTopologicalGraph(7851, "09:00:00", date, connection);
+            //7851 - orleans
+            //1278 - kanata
+            //3052 - parliament
+            //3062 - carleton
+            createTopologicalGraph(7851, 3052,"09:00:00", date, connection);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
         long endTime = System.nanoTime();
-        long totalRunTime = (endTime - startTime) / 1000000000;
-        System.out.println("\nTOTAL RUNNING TIME OF ALGORITHM: " + totalRunTime);
+        long totalRunTime = (endTime - startTime) / 1000000;
+        System.out.println("\nTOTAL RUNNING TIME OF ALGORITHM: " + totalRunTime + " milliseconds");
     }
 
     /// For basic user input
@@ -269,7 +273,6 @@ public class Main {
             if(currentStop.previousStopId == null){
                 return false;
             }
-
             BusStop previousStop = busNetwork.getBusStop(currentStop.previousStopId);
 
             boolean isEarlier = isTimeOneEarlier(curStop.arrivalTime, currentStop.arrivalTime);
@@ -280,7 +283,7 @@ public class Main {
                 busNetwork.removeEdge(previousStop.stopCodeId,currentStop.stopCodeId);
 
                 //update new previous stop for curStop
-                curStop.previousStopId = previousStop.stopCodeId;
+                curStop.previousStopId = prevStop.stopCodeId;
 
                 //update the current bus stop with the new information
                 busNetwork.allBusStops.put(currentStop.stopCodeId, curStop);
@@ -367,10 +370,11 @@ public class Main {
     }
 
     /// Generates the graph that will be used to find route
-    public static void createTopologicalGraph(int busStopOrigin, String time, int date, Connection connection){
+    public static void createTopologicalGraph(int busStopOrigin, int busStopDestination, String time, int date, Connection connection){
         try{
             //convert stopId to something usable
             String busStopOriginId = convertCodeToId(busStopOrigin, connection);
+            String busStopDestinationId = convertCodeToId(busStopDestination,connection);
 
             //get all buses leaving within 20 minutes of time (each record is a single bus leaving that particular stop)
             List<BusRecord> busArrivals = getAllDepartingBusses(busStopOriginId, time, 30, connection);
@@ -409,16 +413,15 @@ public class Main {
             }
 
             System.out.println("Graph allBusStops size: " + busNetwork.allBusStops.size() + "\nGraph allBusStops size: " + busNetwork.adjacencyList.size());
-            if(busNetwork.doesNodeExist("10738")){
-                BusStop testStop = busNetwork.getBusStop("10738");
+            if(busNetwork.doesNodeExist(busStopDestinationId)){
+                BusStop testStop = busNetwork.getBusStop(busStopDestinationId);
                 while(testStop.previousStopId != null){
                     System.out.println(testStop);
                     testStop = busNetwork.getBusStop(testStop.previousStopId);
                 }
+                testStop.previousStopId = testStop.stopCodeId;
                 System.out.println(testStop);
             }
-
-
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
