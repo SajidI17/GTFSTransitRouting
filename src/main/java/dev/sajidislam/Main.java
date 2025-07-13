@@ -3,6 +3,8 @@ import java.sql.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.time.*;
+import com.opencsv.CSVWriter;
+import java.io.FileWriter;
 
 // Monday - 0, Sunday - 7
 //todo: convert string time to java LocalTime
@@ -30,15 +32,22 @@ public class Main {
             //1278 - kanata
             //3052 - parliament
             //3062 - carleton
-            createTopologicalGraph(7851, 3052,"09:00:00", date, connection);
+            List<BusStop> busStopList = createTopologicalGraph(7851, 3052,"10:00:00", date, connection);
+
+            long endTime = System.nanoTime();
+            long totalRunTime = (endTime - startTime) / 1000000;
+            System.out.println("\nTOTAL RUNNING TIME OF ALGORITHM: " + totalRunTime + " milliseconds");
+
+            System.out.println("Creating result CSV file...");
+            List<String[]> dataList = createBusStopDataList(busStopList, connection);
+            createResultCSVFile(dataList);
+            System.out.println("File created!");
+
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        long endTime = System.nanoTime();
-        long totalRunTime = (endTime - startTime) / 1000000;
-        System.out.println("\nTOTAL RUNNING TIME OF ALGORITHM: " + totalRunTime + " milliseconds");
-    }
 
+    }
     /// For basic user input
     public static int getOriginAndDestination(){
         Scanner input = new Scanner(System.in);
@@ -370,7 +379,8 @@ public class Main {
     }
 
     /// Generates the graph that will be used to find route
-    public static void createTopologicalGraph(int busStopOrigin, int busStopDestination, String time, int date, Connection connection){
+    public static List<BusStop> createTopologicalGraph(int busStopOrigin, int busStopDestination, String time, int date, Connection connection){
+        List<BusStop> busStopList = new ArrayList<>();
         try{
             //convert stopId to something usable
             String busStopOriginId = convertCodeToId(busStopOrigin, connection);
@@ -414,14 +424,68 @@ public class Main {
 
             System.out.println("Graph allBusStops size: " + busNetwork.allBusStops.size() + "\nGraph allBusStops size: " + busNetwork.adjacencyList.size());
             if(busNetwork.doesNodeExist(busStopDestinationId)){
-                BusStop testStop = busNetwork.getBusStop(busStopDestinationId);
-                while(testStop.previousStopId != null){
-                    System.out.println(testStop);
-                    testStop = busNetwork.getBusStop(testStop.previousStopId);
+                BusStop resultStop = busNetwork.getBusStop(busStopDestinationId);
+                while(resultStop.previousStopId != null){
+                    busStopList.add(resultStop);
+                    //System.out.println(resultStop);
+                    resultStop = busNetwork.getBusStop(resultStop.previousStopId);
                 }
-                testStop.previousStopId = testStop.stopCodeId;
-                System.out.println(testStop);
+                resultStop.previousStopId = resultStop.stopCodeId;
+                busStopList.add(resultStop);
+                //System.out.println(resultStop);
             }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return busStopList;
+    }
+
+    public static void createResultCSVFile(List<String[]> dataList){
+        try{
+            CSVWriter writer = new CSVWriter(new FileWriter("./stopLocations.csv"));
+            String[] headerLine = {"stopCodeId", "tripId", "routeId", "arrivalTime", "previousStopId", "latTo", "lonTo", "latFrom", "lonFrom"};
+            writer.writeNext(headerLine);
+            writer.writeAll(dataList);
+            writer.close();
+
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static List<String[]> createBusStopDataList(List<BusStop> busStopList, Connection connection){
+        try {
+            List<String[]> dataList = new ArrayList<>();
+            for(BusStop busStop : busStopList){
+
+                String sqlStatement = "SELECT stop_lat,stop_lon FROM stops WHERE stop_id = ?";
+                PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
+                preparedStatement.setString(1,busStop.stopCodeId);
+                ResultSet resultSet = preparedStatement.executeQuery();
+
+                String stopLatTo = "";
+                String stopLonTo = "";
+                if(resultSet.next()){
+                    stopLatTo = resultSet.getString("stop_lat");
+                    stopLonTo = resultSet.getString("stop_lon");
+                }
+
+                preparedStatement = connection.prepareStatement(sqlStatement);
+                preparedStatement.setString(1,busStop.previousStopId);
+                resultSet = preparedStatement.executeQuery();
+
+                String stopLatFrom = "";
+                String stopLonFrom = "";
+                if(resultSet.next()){
+                    stopLatFrom = resultSet.getString("stop_lat");
+                    stopLonFrom = resultSet.getString("stop_lon");
+                }
+
+
+                String[] data = {busStop.stopCodeId, busStop.tripId, busStop.routeId, busStop.arrivalTime, busStop.previousStopId, stopLatTo, stopLonTo, stopLatFrom, stopLonFrom};
+                dataList.add(data);
+            }
+            return dataList;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

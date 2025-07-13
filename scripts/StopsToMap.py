@@ -11,43 +11,44 @@ USER = "postgres"
 PASSWORD = "admin"
 HOST = "localhost"
 PORT = 5432
-IMPORTFILEPATH = os.path.join(os.path.dirname(__file__), '..\\GTFS dump\\Output\\')
+IMPORTFILEPATH = os.path.join(os.path.dirname(__file__), '..\\')
 
-data = """TEMPORARILY EMPTY FOR COMMIT
-""".strip().splitlines()
+#######################################################################################################
+# CreateCSVFile() no longer needed, Java application automatically creates the csv file needed
+#######################################################################################################
 
-columns = ['stopCodeId', 'tripId', 'routeId', 'arrivalTime', 'previousStopId', 'latTo', 'lonTo', 'latFrom', 'lonFrom']
+# columns = ['stopCodeId', 'tripId', 'routeId', 'arrivalTime', 'previousStopId', 'latTo', 'lonTo', 'latFrom', 'lonFrom']
 
-def ConvertTextToArray():
-    resultArr = []
-    for line in data:
-            temp = []
-            for i in range(5):
-                firstIndex = line.find("\'")
-                secondIndex = line.find("\'",firstIndex+1)
-                temp.append(line[firstIndex+1:secondIndex])
-                line = line[secondIndex+1:]
-            resultArr.append(temp)
-    return resultArr
+# def ConvertTextToArray():
+#     resultArr = []
+#     for line in data:
+#             temp = []
+#             for i in range(5):
+#                 firstIndex = line.find("\'")
+#                 secondIndex = line.find("\'",firstIndex+1)
+#                 temp.append(line[firstIndex+1:secondIndex])
+#                 line = line[secondIndex+1:]
+#             resultArr.append(temp)
+#     return resultArr
 
-def CreateCSVFile():
-    connection = psycopg2.connect(database=DATABASENAME, user=USER, password=PASSWORD, host=HOST, port=PORT)
-    cursor = connection.cursor()
+# def CreateCSVFile():
+#     connection = psycopg2.connect(database=DATABASENAME, user=USER, password=PASSWORD, host=HOST, port=PORT)
+#     cursor = connection.cursor()
     
-    with open((IMPORTFILEPATH + "stopLocations.csv"), 'w', newline='') as csvFile:
-        writer = csv.writer(csvFile)
-        writer.writerow(columns)
-        resultArr = ConvertTextToArray()
-        for arr in resultArr:
-            cursor.execute(("SELECT stop_lat,stop_lon FROM stops WHERE stop_id = '" + arr[0] + "'"))
-            result = cursor.fetchall()
-            arr.extend(result[0])
+#     with open((IMPORTFILEPATH + "stopLocations.csv"), 'w', newline='') as csvFile:
+#         writer = csv.writer(csvFile)
+#         writer.writerow(columns)
+#         resultArr = ConvertTextToArray()
+#         for arr in resultArr:
+#             cursor.execute(("SELECT stop_lat,stop_lon FROM stops WHERE stop_id = '" + arr[0] + "'"))
+#             result = cursor.fetchall()
+#             arr.extend(result[0])
 
-            cursor.execute(("SELECT stop_lat,stop_lon FROM stops WHERE stop_id = '" + arr[4] + "'"))
-            result = cursor.fetchall()
-            arr.extend(result[0])
+#             cursor.execute(("SELECT stop_lat,stop_lon FROM stops WHERE stop_id = '" + arr[4] + "'"))
+#             result = cursor.fetchall()
+#             arr.extend(result[0])
 
-            writer.writerow(arr)
+#             writer.writerow(arr)
 
 
 def ShowMap():
@@ -74,7 +75,7 @@ def ShowMap():
               lat=[row['latFrom'], row['latTo']],
               line_color=colourValue,
               name=nameString,
-              showlegend=False,
+              showlegend=True,
               line=dict(width=5)
         ))
 
@@ -91,7 +92,6 @@ def ShowMap():
     fig.show(config=config)
 
 if __name__ == "__main__":
-    CreateCSVFile()
     ShowMap()
 
 
