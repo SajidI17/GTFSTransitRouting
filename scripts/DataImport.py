@@ -1,7 +1,7 @@
 import psycopg2
 import os
 import math
-DATABASENAME = "OCGTFS"
+DATABASENAME = "OCDatabase"
 USER = "postgres"
 PASSWORD = "admin"
 HOST = "localhost"
@@ -36,8 +36,9 @@ def BusStopDistances():
                 continue
             distance = HaversineDistance(result[i][5], result[i][6], result[j][5], result[j][6])
             if(distance <= 0.5):
+                walkingDistance = math.ceil(distance/0.08)
                 busstops.append((result[i][0],result[j][0]))
-                cursor.execute("INSERT INTO transfers VALUES (%s,%s,6)", (result[i][0], result[j][0]))
+                cursor.execute("INSERT INTO transfers VALUES (%s,%s,%s)", (result[i][0], result[j][0],walkingDistance))
     connection.commit()
     cursor.close()
     connection.close()
@@ -65,8 +66,7 @@ def CreateIndex():
 
 
 if __name__ == "__main__":
-    #fileListOne = ["routes", "stops", "trips", "stop_times", "calendar", "calendar_dates"]
-    fileListOne = ["stops"]
+    fileListOne = ["routes", "stops", "trips", "stop_times", "calendar", "calendar_dates"]
     ImportDataIntoDatabase(fileListOne)
 
     addedStops = BusStopDistances()

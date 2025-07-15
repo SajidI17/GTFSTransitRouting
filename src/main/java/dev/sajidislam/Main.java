@@ -10,7 +10,7 @@ import java.io.FileWriter;
 //todo: convert string time to java LocalTime
 
 public class Main {
-    private static final String URL = "jdbc:postgresql://localhost:5432/OCGTFS"; //Change OCGTFS to the name of the database you have
+    private static final String URL = "jdbc:postgresql://localhost:5432/OCDatabase"; //Change OCGTFS to the name of the database you have
     private static final String USERNAME = "postgres";
     private static final String PASSWORD = "admin";
     private static Map<String, ServiceType> serviceTypeMap;
@@ -26,13 +26,17 @@ public class Main {
         try{
             Class.forName("org.postgresql.Driver");
             Connection connection = DriverManager.getConnection(URL, USERNAME, PASSWORD);
-            int date = 20250603;
+            int date = 20250715;
+            String type = "WEEKDAY";
             setSchedules(connection, date);
+            setTrilSchedule(type,date,connection);
+
             //7851 - orleans
             //1278 - kanata
+            //0835
             //3052 - parliament
             //3062 - carleton
-            List<BusStop> busStopList = createTopologicalGraph(7851, 3052,"10:00:00", date, connection);
+            List<BusStop> busStopList = createTopologicalGraph("0835", "3062","09:45:00", date, connection);
 
             long endTime = System.nanoTime();
             long totalRunTime = (endTime - startTime) / 1000000;
@@ -40,8 +44,9 @@ public class Main {
 
             System.out.println("Creating result CSV file...");
             List<String[]> dataList = createBusStopDataList(busStopList, connection);
-            createResultCSVFile(dataList);
+            createResultCSVFile(dataList, "stopLocations");
             System.out.println("File created!");
+            debugMap(connection);
 
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -103,6 +108,34 @@ public class Main {
         }
     }
 
+    public static void setTrilSchedule(String type, int date, Connection connection){
+        try {
+            String sqlStatement = "SELECT * FROM calendar";
+            PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
+            ResultSet resultSet = preparedStatement.executeQuery();
+
+            while (resultSet.next()){
+                String serviceId = resultSet.getString("service_id");
+                if(serviceId.toUpperCase().contains("TRIL") && serviceId.toUpperCase().contains(type.toUpperCase())){
+                    ServiceType serviceType = new ServiceType(
+                            resultSet.getBoolean("monday"),
+                            resultSet.getBoolean("tuesday"),
+                            resultSet.getBoolean("wednesday"),
+                            resultSet.getBoolean("thursday"),
+                            resultSet.getBoolean("friday"),
+                            resultSet.getBoolean("saturday"),
+                            resultSet.getBoolean("sunday"),
+                            date
+                    );
+                    serviceTypeMap.putIfAbsent(serviceId,serviceType);
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 
     /// Prints compatible dates available in the database, mainly used for UI
     public static List<Integer> getAvailableDates(Connection connection){
@@ -125,11 +158,11 @@ public class Main {
     }
 
     /// Converts a bus stop to the StopId used in the database
-    public static String convertCodeToId(int busStopCode, Connection connection){
+    public static String convertCodeToId(String busStopCode, Connection connection){
         try {
             String sqlStatement = "SELECT stop_id FROM stops WHERE stop_code = ?";
             PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
-            preparedStatement.setString(1, String.valueOf(busStopCode));
+            preparedStatement.setString(1, busStopCode);
             ResultSet resultSet = preparedStatement.executeQuery();
 
             if(resultSet.next()){
@@ -379,7 +412,7 @@ public class Main {
     }
 
     /// Generates the graph that will be used to find route
-    public static List<BusStop> createTopologicalGraph(int busStopOrigin, int busStopDestination, String time, int date, Connection connection){
+    public static List<BusStop> createTopologicalGraph(String busStopOrigin, String busStopDestination, String time, int date, Connection connection){
         List<BusStop> busStopList = new ArrayList<>();
         try{
             //convert stopId to something usable
@@ -427,12 +460,12 @@ public class Main {
                 BusStop resultStop = busNetwork.getBusStop(busStopDestinationId);
                 while(resultStop.previousStopId != null){
                     busStopList.add(resultStop);
-                    //System.out.println(resultStop);
+                    System.out.println(resultStop);
                     resultStop = busNetwork.getBusStop(resultStop.previousStopId);
                 }
                 resultStop.previousStopId = resultStop.stopCodeId;
                 busStopList.add(resultStop);
-                //System.out.println(resultStop);
+                System.out.println(resultStop);
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -440,9 +473,10 @@ public class Main {
         return busStopList;
     }
 
-    public static void createResultCSVFile(List<String[]> dataList){
+    public static void createResultCSVFile(List<String[]> dataList, String fileName){
+        String fileNamePath = "./" + fileName + ".csv";
         try{
-            CSVWriter writer = new CSVWriter(new FileWriter("./stopLocations.csv"));
+            CSVWriter writer = new CSVWriter(new FileWriter(fileNamePath));
             String[] headerLine = {"stopCodeId", "tripId", "routeId", "arrivalTime", "previousStopId", "latTo", "lonTo", "latFrom", "lonFrom"};
             writer.writeNext(headerLine);
             writer.writeAll(dataList);
@@ -489,5 +523,13 @@ public class Main {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static void debugMap(Connection connection){
+        System.out.println("Creating debug csv...");
+        List<BusStop> busStopList = new ArrayList<>(busNetwork.allBusStops.values());
+        List<String[]> dataList = createBusStopDataList(busStopList, connection);
+        createResultCSVFile(dataList, "stopLocationsDebug");
+        System.out.println("File created!");
     }
 }
