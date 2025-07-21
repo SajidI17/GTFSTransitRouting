@@ -1,4 +1,4 @@
-package dev.sajidislam;
+package dev.sajidislam.util;
 
 public class ServiceType {
     boolean isMon = false;

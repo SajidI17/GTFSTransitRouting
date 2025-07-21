@@ -1,4 +1,4 @@
-package dev.sajidislam;
+package dev.sajidislam.util;
 import java.sql.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -18,7 +18,33 @@ public class Main {
     private static List<String> excludeTripIds;
 
     public static void main(String[] args) {
+        //7851 - orleans
+        //1278 - kanata
+        //0835
+        //3052 - parliament
+        //3062 - carleton
         long startTime = System.nanoTime();
+        List<BusStopWeb> busStopList = runProgram("7851", "3052","09:45:00", 20250715, "WEEKDAY");
+
+        long endTime = System.nanoTime();
+        long totalRunTime = (endTime - startTime) / 1000000;
+        System.out.println("\nTOTAL RUNNING TIME OF ALGORITHM: " + totalRunTime + " milliseconds");
+
+        try {
+            Class.forName("org.postgresql.Driver");
+            Connection connection = DriverManager.getConnection(URL, USERNAME, PASSWORD);
+            System.out.println("Creating result CSV file...");
+            List<String[]> dataList = createBusStopDataList(busStopList, connection);
+            createResultCSVFile(dataList, "stopLocations");
+            System.out.println("File created!");
+            connection.close();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static List<BusStopWeb> runProgram(String busStopOrigin, String busStopDestination, String time, int date, String weekDayType){
+
         serviceTypeMap = new HashMap<>();
         busNetwork = new Graph();
         excludeTripIds = new ArrayList<>();
@@ -26,33 +52,20 @@ public class Main {
         try{
             Class.forName("org.postgresql.Driver");
             Connection connection = DriverManager.getConnection(URL, USERNAME, PASSWORD);
-            int date = 20250715;
-            String type = "WEEKDAY";
             setSchedules(connection, date);
-            setTrilSchedule(type,date,connection);
+            setTrilSchedule(weekDayType,date,connection);
 
-            //7851 - orleans
-            //1278 - kanata
-            //0835
-            //3052 - parliament
-            //3062 - carleton
-            List<BusStop> busStopList = createTopologicalGraph("0835", "3062","09:45:00", date, connection);
 
-            long endTime = System.nanoTime();
-            long totalRunTime = (endTime - startTime) / 1000000;
-            System.out.println("\nTOTAL RUNNING TIME OF ALGORITHM: " + totalRunTime + " milliseconds");
-
-            System.out.println("Creating result CSV file...");
-            List<String[]> dataList = createBusStopDataList(busStopList, connection);
-            createResultCSVFile(dataList, "stopLocations");
-            System.out.println("File created!");
-            debugMap(connection);
+            List<BusStop> busStopList = createTopologicalGraph(busStopOrigin, busStopDestination, time, date, connection);
+            List<BusStopWeb> busStopWebList = convertForWeb(busStopList, connection);
+            connection.close();
+            return busStopWebList;
 
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-
     }
+
     /// For basic user input
     public static int getOriginAndDestination(){
         Scanner input = new Scanner(System.in);
@@ -487,10 +500,10 @@ public class Main {
         }
     }
 
-    public static List<String[]> createBusStopDataList(List<BusStop> busStopList, Connection connection){
+    public static List<String[]> createBusStopDataList(List<BusStopWeb> busStopList, Connection connection){
         try {
             List<String[]> dataList = new ArrayList<>();
-            for(BusStop busStop : busStopList){
+            for(BusStopWeb busStop : busStopList){
 
                 String sqlStatement = "SELECT stop_lat,stop_lon FROM stops WHERE stop_id = ?";
                 PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
@@ -525,11 +538,26 @@ public class Main {
         }
     }
 
-    public static void debugMap(Connection connection){
-        System.out.println("Creating debug csv...");
-        List<BusStop> busStopList = new ArrayList<>(busNetwork.allBusStops.values());
-        List<String[]> dataList = createBusStopDataList(busStopList, connection);
-        createResultCSVFile(dataList, "stopLocationsDebug");
-        System.out.println("File created!");
+    public static List<BusStopWeb> convertForWeb(List<BusStop> busStopList, Connection connection){
+        List<BusStopWeb> busStopWebList = new ArrayList<>();
+        try {
+            for(BusStop busStop : busStopList){
+                String sqlStatement = "SELECT stop_lat,stop_lon FROM stops WHERE stop_id = ?";
+                PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
+                preparedStatement.setString(1,busStop.stopCodeId);
+                ResultSet resultSet = preparedStatement.executeQuery();
+                double lat = 0;
+                double lon = 0;
+                if(resultSet.next()){
+                    lat = resultSet.getDouble("stop_lat");
+                    lon = resultSet.getDouble("stop_lon");
+                }
+                busStopWebList.add(new BusStopWeb(busStop, lat, lon));
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        return busStopWebList;
     }
 }

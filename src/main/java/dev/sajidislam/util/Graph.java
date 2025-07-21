@@ -1,4 +1,4 @@
-package dev.sajidislam;
+package dev.sajidislam.util;
 import java.util.*;
 
 public class Graph {
