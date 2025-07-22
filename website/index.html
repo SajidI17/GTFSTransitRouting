@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <link rel="stylesheet" href="src/style.css">
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+        <script src="src/webAppAPI.js"></script>
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+        <title>GTFS Web App</title>
+    </head>
+    <body>
+        <div>
+            <h1>GTFS Web App</h1>
+            <div>
+                <form id="routeForm" class="formGroup">
+                    <div class="inputBox">
+                        <label for="busStopOrigin">Bus Stop Origin ID: </label>
+                        <input type="text" id="busStopOrigin" name="busStopOrigin" value="7851" required/>
+                    </div>
+                    <div class="inputBox">
+                        <label for="busStopDest">Bus Stop Destination ID: </label>
+                        <input type="text" id="busStopDest" name="busStopDest" value="3052" required/>
+                    </div>
+                    <div class="inputBox">
+                        <label for="time">Time: </label>
+                        <input type="text" id="time" name="time" value="09:45:00" required/>
+                    </div>
+                    <div class="inputBox">
+                        <label for="date">Date: </label>
+                        <input type="text" id="date" name="date" value="20250715" required/>
+                    </div>
+                    <div class="inputBox">
+                        <label for="weekDayType">Weekday: </label>
+                        <input type="text" id="weekDayType" name="weekDayType" value="WEEKDAY" required/>
+                    </div>
+                    <div class="inputBox">
+                        <label for="debugMode">API Debug: </label>
+                        <input type="checkbox" id="debugMode" name="debugMode" checked/>
+                    </div>
+                    <div class="inputBox">
+                        <button type="submit">Find Route</button>
+                    </div>
+                </form>
+            </div>
+            <div id="map"></div>
+            <div id="messageBox" class="messageBox"></div>
+        </div>
+    </body>
+</html>
