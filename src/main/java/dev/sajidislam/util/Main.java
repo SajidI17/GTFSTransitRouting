@@ -451,7 +451,7 @@ public class Main {
             findTransfers(busStopUpdate, connection);
 
 
-            //Since we only want to find routes with at most 3 connections, we loop 2 more times
+            boolean routeNotFoundCheck = true;
             for(int i = 0;i < 2; i++){
                 Map<String, BusStop> tempBusList = new HashMap<>();
                 //for each bus stop added to graph, find if any of the bus stops has a trip not yet added to the graph
@@ -466,6 +466,12 @@ public class Main {
                 findTransfers(tempBusList,connection);
 
                 busStopUpdate = tempBusList;
+
+                //better way to do this, but if the route was not found yet, try searching one more time
+                if(!(busNetwork.doesNodeExist(busStopDestinationId)) && routeNotFoundCheck && i == 1){
+                    i = 0;
+                    routeNotFoundCheck = false;
+                }
             }
 
             System.out.println("Graph allBusStops size: " + busNetwork.allBusStops.size() + "\nGraph allBusStops size: " + busNetwork.adjacencyList.size());
