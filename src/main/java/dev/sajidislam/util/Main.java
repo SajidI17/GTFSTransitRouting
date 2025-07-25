@@ -24,7 +24,7 @@ public class Main {
         //3052 - parliament
         //3062 - carleton
         long startTime = System.nanoTime();
-        List<BusStopWeb> busStopList = runProgram("7851", "3052","09:45:00", 20250715, "WEEKDAY");
+        List<BusStopWeb> busStopList = runProgram("7851", "3062","09:45:00", 20250715, "WEEKDAY");
 
         long endTime = System.nanoTime();
         long totalRunTime = (endTime - startTime) / 1000000;
@@ -57,7 +57,11 @@ public class Main {
 
 
             List<BusStop> busStopList = createTopologicalGraph(busStopOrigin, busStopDestination, time, date, connection);
-            List<BusStopWeb> busStopWebList = convertForWeb(busStopList, connection);
+            List<BusStop> optimizeBusStopList = optimizeBusRoute(busStopList, connection);
+            for(BusStop busStop : optimizeBusStopList){
+                System.out.println(busStop);
+            }
+            List<BusStopWeb> busStopWebList = convertForWeb(optimizeBusStopList, connection);
             connection.close();
             return busStopWebList;
 
@@ -479,12 +483,10 @@ public class Main {
                 BusStop resultStop = busNetwork.getBusStop(busStopDestinationId);
                 while(resultStop.previousStopId != null){
                     busStopList.add(resultStop);
-                    System.out.println(resultStop);
                     resultStop = busNetwork.getBusStop(resultStop.previousStopId);
                 }
-                resultStop.previousStopId = resultStop.stopCodeId;
+                //resultStop.previousStopId = resultStop.stopCodeId;
                 busStopList.add(resultStop);
-                System.out.println(resultStop);
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -542,6 +544,40 @@ public class Main {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static List<BusStop> optimizeBusRoute(List<BusStop> busStopList, Connection connection){
+        List<BusStop> transfers = new ArrayList<>();
+
+        try {
+            for(BusStop busStop : busStopList){
+                if(transfers.isEmpty()){
+                    transfers.add(busStop);
+                }
+                else{
+                   String prevRouteId = transfers.getLast().routeId;
+                   String curRouteId = busStop.routeId;
+                   if(!(prevRouteId.equals(curRouteId))){
+                       //entering new route, set end time for the previous route
+
+                       String sqlStatement = "SELECT * FROM stop_times WHERE trip_id = ? AND stop_id = ?";
+                       PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
+                       preparedStatement.setString(1, transfers.getLast().tripId);
+                       preparedStatement.setString(2, busStop.stopCodeId);
+                       ResultSet resultSet = preparedStatement.executeQuery();
+                       if(resultSet.next()){
+                           BusStop endBusStop = convertToBusStopNode(resultSet,connection);
+                           transfers.add(endBusStop);
+                       }
+                   }
+                   transfers.add(busStop);
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        return transfers;
     }
 
     public static List<BusStopWeb> convertForWeb(List<BusStop> busStopList, Connection connection){
