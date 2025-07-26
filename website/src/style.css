@@ -1,0 +1,22 @@
+.formGroup{
+    display:inline-block;
+}
+
+.inputBox{
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+body{
+   font-family: Helvetica, sans-serif; 
+}
+
+#map {
+    height: 800px; 
+    width: 1200px;
+}
+
+.messageBox{
+    padding-top: 50px;
+}
+
