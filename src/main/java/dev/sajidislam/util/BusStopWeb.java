@@ -29,14 +29,12 @@ public class BusStopWeb extends BusStop{
     @Override
     public String toString() {
         if(previousStopId == null){
-            return "BusStopWeb{" +
-                    "stopCodeId='" + stopCodeId + '\'' +
-                    ", tripId='" + tripId + '\'' +
-                    ", routeId='" + routeId + '\'' +
-                    ", arrivalTime='" + arrivalTime + '\'' +
-                    ", latPoint='" + latPoint + '\'' +
-                    ", lonPoint='" + lonPoint + '\'' +
-                    '}';
+            return "new BusStopWeb(\"" + stopCodeId +  "\"," +
+                    "\"" + tripId +  "\"," +
+                    "\"" + routeId +  "\"," +
+                    "\"" + arrivalTime +  "\"," + "null" +  "," +
+                    latPoint +  "," +
+                    lonPoint +  "),";
         }
         return "new BusStopWeb(\"" + stopCodeId +  "\"," +
                 "\"" + tripId +  "\"," +

@@ -48,8 +48,26 @@ function fetchAPIData(){
         document.getElementById("messageBox").textContent = JSON.stringify(data);
         
         var latAndLon = [];
-        for (let i = 0; i < data.length; i++){
-            if(data[i].routeId === "Walking"){
+        var previousRouteId;
+        var resultHTML = "";
+        for (let i = data.length-1; i >= 0; i--){
+            if(i === (data.length - 1)){
+                var index = data.length - 1
+                previousRouteId = data[index].routeId;
+                resultHTML = "<h3>Route: " + data[index].routeId + "</h3>";
+                resultHTML += "<p>Board at stop: " + data[index].stopCodeId + " at " + data[index].arrivalTime;
+            }
+            else if(i === 0){
+                resultHTML += "<p>Drop off stop: " + data[i].stopCodeId + " at " + data[i].arrivalTime;
+            }
+            else if(data[i].routeId !== previousRouteId){
+                previousRouteId = data[i].routeId;
+                resultHTML += "<p>Drop off stop: " + data[i+1].stopCodeId + " at " + data[i+1].arrivalTime;
+                resultHTML += "<h3>Route: " + data[i].routeId + "</h3>";
+                resultHTML += "<p>Board at stop: " + data[i].stopCodeId + " at " + data[i].arrivalTime;
+            }
+
+            if(data[i].routeId === "Walking" && (i != 0) && (i != (data.length-1))){
                 continue;
             }
 
@@ -70,7 +88,8 @@ function fetchAPIData(){
 
             latAndLon.push([lat,lon]);
         }
-        var route = L.polyline(latAndLon).addTo(map)
+        var route = L.polyline(latAndLon).addTo(map);
+        document.getElementById("routeResult").innerHTML = resultHTML;
         
     })
     .catch(function(error){

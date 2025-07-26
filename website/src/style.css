@@ -7,6 +7,17 @@
     padding-bottom: 10px;
 }
 
+.flexBox{
+    display: flex;
+    justify-content: space-around;
+}
+
+.outputFlex{
+    flex: 1;
+    padding-left: 20px;
+    padding-right: 20px;
+}
+
 body{
    font-family: Helvetica, sans-serif; 
 }
@@ -17,6 +28,6 @@ body{
 }
 
 .messageBox{
-    padding-top: 50px;
+    padding-top: 75px;
 }
 
