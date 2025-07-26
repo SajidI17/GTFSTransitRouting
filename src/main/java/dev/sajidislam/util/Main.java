@@ -57,7 +57,7 @@ public class Main {
 
 
             List<BusStop> busStopList = createTopologicalGraph(busStopOrigin, busStopDestination, time, date, connection);
-            List<BusStop> optimizeBusStopList = optimizeBusRoute(busStopList, connection);
+            List<BusStop> optimizeBusStopList = optimizeBusRoute(busStopList, time, connection);
             for(BusStop busStop : optimizeBusStopList){
                 System.out.println(busStop);
             }
@@ -546,10 +546,27 @@ public class Main {
         }
     }
 
-    public static List<BusStop> optimizeBusRoute(List<BusStop> busStopList, Connection connection){
+    public static List<BusStop> optimizeBusRoute(List<BusStop> busStopList, String time, Connection connection){
         List<BusStop> transfers = new ArrayList<>();
 
         try {
+            if(busStopList.size() >= 2){
+                int lastIndex = busStopList.size() - 1;
+
+                //fixes issue where first bus stop in a given route does not match the next bus
+                String sqlStatement = "SELECT * FROM stop_times WHERE trip_id = ? AND stop_id = ?";
+                PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
+                preparedStatement.setString(1,busStopList.get(lastIndex-1).tripId);
+                preparedStatement.setString(2, busStopList.get(lastIndex).stopCodeId);
+                ResultSet resultSet = preparedStatement.executeQuery();
+                if(resultSet.next()){
+                    BusStop busStop = convertToBusStopNode(resultSet, connection);
+                    if(isTimeOneEarlier(time, busStop.arrivalTime)){
+                        busStopList.set(lastIndex,busStop);
+                    }
+                }
+            }
+
             for(BusStop busStop : busStopList){
                 if(transfers.isEmpty()){
                     transfers.add(busStop);

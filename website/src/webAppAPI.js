@@ -49,6 +49,10 @@ function fetchAPIData(){
         
         var latAndLon = [];
         for (let i = 0; i < data.length; i++){
+            if(data[i].routeId === "Walking"){
+                continue;
+            }
+
             var lat = data[i].latPoint;
             var lon = data[i].lonPoint;
 
