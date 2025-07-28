@@ -50,38 +50,58 @@ function fetchAPIData(){
         var latAndLon = [];
         var previousRouteId;
         var resultHTML = "";
+        //go through the array backwards as the last element is the first bus in the route
         for (let i = data.length-1; i >= 0; i--){
+            //set html text for routing provided by API
             if(i === (data.length - 1)){
+                //initial html tag
                 var index = data.length - 1
                 previousRouteId = data[index].routeId;
-                resultHTML = "<h3>Route: " + data[index].routeId + "</h3>";
-                resultHTML += "<p>Board at stop: " + data[index].stopCodeId + " at " + data[index].arrivalTime;
+
+                //set different text for walking if needed
+                if(data[index].routeId === "Walking"){
+                    resultHTML = "<h3>Walking</h3>";
+                    resultHTML += "<p>Walk to stop: " + data[index].stopCodeId;
+                }
+                else{
+                    resultHTML = "<h3>Route: " + data[index].routeId + "</h3>";
+                    resultHTML += "<p>Board at stop: " + data[index].stopCodeId + " at " + data[index].arrivalTime;
+                }
+                
             }
-            else if(i === 0){
+            else if(i === 0 && data[i].routeId !== "Walking"){
+                //if we reach the end of the array, then we know we have finished the route
                 resultHTML += "<p>Drop off stop: " + data[i].stopCodeId + " at " + data[i].arrivalTime;
             }
             else if(data[i].routeId !== previousRouteId){
+                //if a new route was found, set the drop off information and the board stop information for the new route
                 previousRouteId = data[i].routeId;
-                resultHTML += "<p>Drop off stop: " + data[i+1].stopCodeId + " at " + data[i+1].arrivalTime;
-                resultHTML += "<h3>Route: " + data[i].routeId + "</h3>";
-                resultHTML += "<p>Board at stop: " + data[i].stopCodeId + " at " + data[i].arrivalTime;
+
+                if(data[i+1].routeId !== "Walking"){
+                    resultHTML += "<p>Drop off stop: " + data[i+1].stopCodeId + " at " + data[i+1].arrivalTime;
+                }
+
+                if(data[i].routeId !== "Walking"){
+                    resultHTML += "<h3>Route: " + data[i].routeId + "</h3>";
+                    resultHTML += "<p>Board at stop: " + data[i].stopCodeId + " at " + data[i].arrivalTime;
+                }
+                else{
+                    resultHTML += "<h3>Walking</h3>";
+                    resultHTML += "<p>Walk to stop: " + data[i].stopCodeId;
+                }
+                
             }
 
+            //avoid creating edges/points on map made for walking
             if(data[i].routeId === "Walking" && (i != 0) && (i != (data.length-1))){
                 continue;
             }
 
+            //set edges and points on map
             var lat = data[i].latPoint;
             var lon = data[i].lonPoint;
 
             var point = L.marker([data[i].latPoint, data[i].lonPoint]).addTo(map);
-            
-            // var point = L.circle([lat, lon], {
-            //     color: 'red',
-            //     fillColor: 'red',
-            //     fillOpacity: 1,
-            //     radius: 40
-            // }).addTo(map);
 
             var stringToolTip = "StopCode = " + data[i].stopCodeId + ", Route = " + data[i].routeId + ", Time = " + data[i].arrivalTime
             point.bindTooltip(stringToolTip, {direction: 'top'});
