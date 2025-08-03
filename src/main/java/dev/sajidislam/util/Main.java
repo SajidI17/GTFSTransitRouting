@@ -16,6 +16,7 @@ public class Main {
     private static Map<String, ServiceType> serviceTypeMap;
     private static Graph busNetwork;
     private static List<String> excludeTripIds;
+    private static Array serviceSqlArray;
 
     public static void main(String[] args) {
         //7851 - orleans
@@ -29,18 +30,6 @@ public class Main {
         long endTime = System.nanoTime();
         long totalRunTime = (endTime - startTime) / 1000000;
         System.out.println("\nTOTAL RUNNING TIME OF ALGORITHM: " + totalRunTime + " milliseconds");
-
-        try {
-            Class.forName("org.postgresql.Driver");
-            Connection connection = DriverManager.getConnection(URL, USERNAME, PASSWORD);
-            System.out.println("Creating result CSV file...");
-            List<String[]> dataList = createBusStopDataList(busStopList, connection);
-            createResultCSVFile(dataList, "stopLocations");
-            System.out.println("File created!");
-            connection.close();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
     }
 
     public static List<BusStopWeb> runProgram(String busStopOrigin, String busStopDestination, String time, int date, String weekDayType){
@@ -54,7 +43,7 @@ public class Main {
             Connection connection = DriverManager.getConnection(URL, USERNAME, PASSWORD);
             setSchedules(connection, date);
             setTrilSchedule(weekDayType,date,connection);
-
+            serviceSqlArray = connection.createArrayOf("TEXT", serviceTypeMap.keySet().toArray());
 
             List<BusStop> busStopList = createTopologicalGraph(busStopOrigin, busStopDestination, time, date, connection);
             List<BusStop> optimizeBusStopList = optimizeBusRoute(busStopList, time, connection);
@@ -68,20 +57,6 @@ public class Main {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-    }
-
-    /// For basic user input
-    public static int getOriginAndDestination(){
-        Scanner input = new Scanner(System.in);
-        System.out.println("Please enter bus stop code of origin: ");
-        int busStopOrigin = input.nextInt();
-        System.out.println("Please enter bus stop code of destination: ");
-        int busStopDestination = input.nextInt();
-        System.out.println("Please enter date: ");
-        String weekDay = input.nextLine();
-        System.out.println("Please enter the time you will leave from the origin: ");
-        String time = input.nextLine();
-        return 0;
     }
 
     /// Sets the static variable serviceTypeMap with the serviceIDs that run on the user requested date
@@ -200,46 +175,29 @@ public class Main {
         try{
 
             //set sql array
-            Array sqlArr = connection.createArrayOf("TEXT", excludeTripIds.toArray());
+            Array tripsSqlArr = connection.createArrayOf("TEXT", excludeTripIds.toArray());
 
-            //get all buses leaving a particular stop within x minutes of time
-            String sqlStatement = "SELECT * FROM stop_times WHERE stop_Id = ? AND arrival_time > (?::interval) AND arrival_time <= (?::interval + INTERVAL '"+ minutes + " minutes') AND NOT (trip_id = ANY(?))";
+            //get all buses leaving a particular stop within x minutes of time AND has the correct serviceID
+            //String sqlStatement = "SELECT * FROM stop_times WHERE stop_Id = ? AND arrival_time > (?::interval) AND arrival_time <= (?::interval + INTERVAL '"+ minutes + " minutes') AND NOT (trip_id = ANY(?))";
+            String sqlStatement = "SELECT * FROM stop_times as s INNER JOIN trips ON s.trip_id = trips.trip_id WHERE s.stop_Id = ? AND s.arrival_time > (?::interval) AND s.arrival_time <= (?::interval + INTERVAL '" + minutes + " minutes') AND NOT (s.trip_id = ANY(?)) AND (trips.service_id = ANY(?))";
             PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
             preparedStatement.setString(1,busStopId);
             preparedStatement.setObject(2, time);
             preparedStatement.setObject(3, time);
-            preparedStatement.setArray(4, sqlArr);
+            preparedStatement.setArray(4, tripsSqlArr);
+            preparedStatement.setArray(5, serviceSqlArray);
             ResultSet resultSet = preparedStatement.executeQuery();
 
-            //check that these buses are running on that particular day
             while (resultSet.next()) {
                 String tripId = resultSet.getString("trip_id");
 
-                //add to list to exclude from future queries
-                excludeTripIds.add(tripId);
-
-                sqlStatement = "SELECT * FROM trips WHERE trip_id = ?";
-                preparedStatement = connection.prepareStatement(sqlStatement);
-                preparedStatement.setString(1,tripId);
-                ResultSet resultSet2 = preparedStatement.executeQuery();
-                while(resultSet2.next()){
-
-                    //previous code
-                    //boolean isRunningCorrectWeek = serviceTypeMap.get(resultSet2.getString("service_id")).isWeekday(weekday);
-
-                    //this checks if the serviceId is for the correct date
-                    boolean isRunningCorrectWeek = serviceTypeMap.containsKey(resultSet2.getString("service_id"));
-
-                    if(isRunningCorrectWeek){
-                        String arrivalTime = resultSet.getTime("arrival_time").toString();
-                        String stopId = resultSet.getString("stop_id");
-                        String routeId = resultSet2.getString("route_id");
-                        int stopSequence = resultSet.getInt("stop_sequence");
-                        String headSign = resultSet2.getString("trip_headsign");
-                        String serviceId = resultSet2.getString("service_id");
-                        BusRecordList.add(new BusRecord(arrivalTime,stopId,tripId,routeId,stopSequence,headSign,serviceId));
-                    }
-                }
+                String arrivalTime = resultSet.getTime("arrival_time").toString();
+                String stopId = resultSet.getString("stop_id");
+                String routeId = resultSet.getString("route_id");
+                int stopSequence = resultSet.getInt("stop_sequence");
+                String headSign = resultSet.getString("trip_headsign");
+                String serviceId = resultSet.getString("service_id");
+                BusRecordList.add(new BusRecord(arrivalTime, stopId, tripId, routeId, stopSequence, headSign, serviceId));
             }
 
         } catch (Exception e) {
@@ -279,13 +237,26 @@ public class Main {
                 BusStop prevStop = null;
                 ResultSet resultSet = preparedStatement.executeQuery();
 
+                //will store current routeId of the trip, will reduce number of queries
+                String currentRouteId = "";
+
                 //sets the previous bus stop
                 if (resultSet.next()){
-                    prevStop = convertToBusStopNode(resultSet, connection);
+                    String stopId = resultSet.getString("stop_id");
+                    String tripId = resultSet.getString("trip_id");
+                    currentRouteId = getRouteIdFromTripId(tripId, connection);
+                    String arrivalTime = resultSet.getTime("arrival_time").toString();
+
+                    prevStop = new BusStop(stopId,tripId,currentRouteId,arrivalTime);
                 }
 
                 while(resultSet.next()){
-                    BusStop curStop = convertToBusStopNode(resultSet, connection);
+                    String stopId = resultSet.getString("stop_id");
+                    String tripId = resultSet.getString("trip_id");
+                    String arrivalTime = resultSet.getTime("arrival_time").toString();
+
+                    //as we are iterating through a trip, we know the routeId has not changed
+                    BusStop curStop = new BusStop(stopId,tripId,currentRouteId,arrivalTime);
                     //we know that the prevStop variable will be defined due to resultSet.next()
 
                     assert prevStop != null;
@@ -508,43 +479,6 @@ public class Main {
         }
     }
 
-    public static List<String[]> createBusStopDataList(List<BusStopWeb> busStopList, Connection connection){
-        try {
-            List<String[]> dataList = new ArrayList<>();
-            for(BusStopWeb busStop : busStopList){
-
-                String sqlStatement = "SELECT stop_lat,stop_lon FROM stops WHERE stop_id = ?";
-                PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
-                preparedStatement.setString(1,busStop.stopCodeId);
-                ResultSet resultSet = preparedStatement.executeQuery();
-
-                String stopLatTo = "";
-                String stopLonTo = "";
-                if(resultSet.next()){
-                    stopLatTo = resultSet.getString("stop_lat");
-                    stopLonTo = resultSet.getString("stop_lon");
-                }
-
-                preparedStatement = connection.prepareStatement(sqlStatement);
-                preparedStatement.setString(1,busStop.previousStopId);
-                resultSet = preparedStatement.executeQuery();
-
-                String stopLatFrom = "";
-                String stopLonFrom = "";
-                if(resultSet.next()){
-                    stopLatFrom = resultSet.getString("stop_lat");
-                    stopLonFrom = resultSet.getString("stop_lon");
-                }
-
-
-                String[] data = {busStop.stopCodeId, busStop.tripId, busStop.routeId, busStop.arrivalTime, busStop.previousStopId, stopLatTo, stopLonTo, stopLatFrom, stopLonFrom};
-                dataList.add(data);
-            }
-            return dataList;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     public static List<BusStop> optimizeBusRoute(List<BusStop> busStopList, String time, Connection connection){
         List<BusStop> transfers = new ArrayList<>();
@@ -572,22 +506,22 @@ public class Main {
                     transfers.add(busStop);
                 }
                 else{
-                   String prevRouteId = transfers.getLast().routeId;
-                   String curRouteId = busStop.routeId;
-                   if(!(prevRouteId.equals(curRouteId))){
-                       //entering new route, set end time for the previous route
+                    String prevRouteId = transfers.getLast().routeId;
+                    String curRouteId = busStop.routeId;
+                    if(!(prevRouteId.equals(curRouteId))){
+                        //entering new route, set end time for the previous route
 
-                       String sqlStatement = "SELECT * FROM stop_times WHERE trip_id = ? AND stop_id = ?";
-                       PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
-                       preparedStatement.setString(1, transfers.getLast().tripId);
-                       preparedStatement.setString(2, busStop.stopCodeId);
-                       ResultSet resultSet = preparedStatement.executeQuery();
-                       if(resultSet.next()){
-                           BusStop endBusStop = convertToBusStopNode(resultSet,connection);
-                           transfers.add(endBusStop);
-                       }
-                   }
-                   transfers.add(busStop);
+                        String sqlStatement = "SELECT * FROM stop_times WHERE trip_id = ? AND stop_id = ?";
+                        PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
+                        preparedStatement.setString(1, transfers.getLast().tripId);
+                        preparedStatement.setString(2, busStop.stopCodeId);
+                        ResultSet resultSet = preparedStatement.executeQuery();
+                        if(resultSet.next()){
+                            BusStop endBusStop = convertToBusStopNode(resultSet,connection);
+                            transfers.add(endBusStop);
+                        }
+                    }
+                    transfers.add(busStop);
                 }
             }
         } catch (Exception e) {
