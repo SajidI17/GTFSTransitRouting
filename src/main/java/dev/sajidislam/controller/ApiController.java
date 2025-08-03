@@ -18,6 +18,11 @@ public class ApiController {
         return Main.runProgram(busStopOrigin, busStopDest, time, date, weekDayType);
     }
 
+    @GetMapping("/getDates")
+    public List<Integer> getDates(){
+        return Main.getAvailableDates();
+    }
+
     @GetMapping("/apitest")
     public List<BusStopWeb> apitest(@RequestParam String busStopOrigin, @RequestParam String busStopDest, @RequestParam String time, @RequestParam int date, @RequestParam String weekDayType){
         List<BusStopWeb> busStopWebList = Arrays.asList(

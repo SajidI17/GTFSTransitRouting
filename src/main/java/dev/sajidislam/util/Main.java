@@ -130,10 +130,13 @@ public class Main {
 
 
     /// Prints compatible dates available in the database, mainly used for UI
-    public static List<Integer> getAvailableDates(Connection connection){
+    public static List<Integer> getAvailableDates(){
         List<Integer> dates = new ArrayList<>();
 
         try{
+            Class.forName("org.postgresql.Driver");
+            Connection connection = DriverManager.getConnection(URL, USERNAME, PASSWORD);
+
             String sqlStatement = "SELECT DISTINCT date FROM calendar_dates ORDER BY date ASC";
             PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
             ResultSet resultSet = preparedStatement.executeQuery();

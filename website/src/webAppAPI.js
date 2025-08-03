@@ -12,13 +12,32 @@ function pageLoad(){
     });
     map = L.map('map').setView([45.414, -75.715], 13);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
+
+    var getDatesAPIUrl = "http://localhost:8080/getDates"
+    fetch(getDatesAPIUrl)
+    .then(function(response) {
+        if(!response.ok){
+            throw new Error("Error in API");
+        }
+        return response.json();
+    })
+    .then(function(data) {
+        for(let i = 0; i < data.length; i++){
+            var selectElement = document.getElementById("dates");
+            var newSelect = new Option(data[i], data[i]);
+            selectElement.add(newSelect);
+        }
+    })
+    .catch(function(error){
+        throw new Error(error)
+    })
 }
 
 function fetchAPIData(){
     var busStopOrigin = document.getElementById("busStopOrigin").value;
     var busStopDest = document.getElementById("busStopDest").value;
     var time = document.getElementById("time").value;
-    var date = document.getElementById("date").value;
+    var date = document.getElementById("dates").value
     var weekDayType = document.getElementById("weekDayType").value;
 
     document.getElementById("messageBox").textContent = "busStopOrigin: " + busStopOrigin + ", busStopDest:" + busStopDest + ", time:" + time + ", date:" + date + ", weekDayType:" + weekDayType;
