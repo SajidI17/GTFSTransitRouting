@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @CrossOrigin(origins = "*")
 public class ApiController {
+    private final List<Integer> availableDates = Main.getAvailableDates();
 
     //localhost:8080/getRoute?busStopOrigin=7851&busStopDest=3052&time=09:45:00&date=20250715&weekDayType=WEEKDAY
     @GetMapping("/getRoute")
@@ -20,7 +21,7 @@ public class ApiController {
 
     @GetMapping("/getDates")
     public List<Integer> getDates(){
-        return Main.getAvailableDates();
+        return availableDates;
     }
 
     @GetMapping("/apitest")
