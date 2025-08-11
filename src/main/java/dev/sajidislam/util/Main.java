@@ -1,10 +1,12 @@
 package dev.sajidislam.util;
 import java.sql.*;
+import java.text.SimpleDateFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.time.*;
 import com.opencsv.CSVWriter;
 import java.io.FileWriter;
+import java.util.Date;
 
 // Monday - 0, Sunday - 7
 //todo: convert string time to java LocalTime
@@ -13,7 +15,7 @@ public class Main {
     private static final String URL = "jdbc:postgresql://localhost:5432/OCDatabase"; //Change OCGTFS to the name of the database you have
     private static final String USERNAME = "postgres";
     private static final String PASSWORD = "admin";
-    private static Map<String, ServiceType> serviceTypeMap;
+    private static Map<String, Boolean> serviceTypeMap;
     private static Graph busNetwork;
     private static List<String> excludeTripIds;
     private static Array serviceSqlArray;
@@ -25,14 +27,14 @@ public class Main {
         //3052 - parliament
         //3062 - carleton
         long startTime = System.nanoTime();
-        List<BusStopWeb> busStopList = runProgram("7851", "3062","09:45:00", 20250715, "WEEKDAY");
+        List<BusStopWeb> busStopList = runProgram("1278", "3062","09:45:00", 20250715);
 
         long endTime = System.nanoTime();
         long totalRunTime = (endTime - startTime) / 1000000;
         System.out.println("\nTOTAL RUNNING TIME OF ALGORITHM: " + totalRunTime + " milliseconds");
     }
 
-    public static List<BusStopWeb> runProgram(String busStopOrigin, String busStopDestination, String time, int date, String weekDayType){
+    public static List<BusStopWeb> runProgram(String busStopOrigin, String busStopDestination, String time, int date){
 
         serviceTypeMap = new HashMap<>();
         busNetwork = new Graph();
@@ -41,8 +43,13 @@ public class Main {
         try{
             Class.forName("org.postgresql.Driver");
             Connection connection = DriverManager.getConnection(URL, USERNAME, PASSWORD);
-            setSchedules(connection, date);
-            setTrilSchedule(weekDayType,date,connection);
+
+            //convert date to day of the week
+            Date javaDate = new SimpleDateFormat("yyyyMMdd").parse(String.valueOf(date));
+            String dayOfWeek = new SimpleDateFormat("EEEE").format(javaDate);
+            System.out.println(dayOfWeek);
+
+            setSchedules(connection, date, dayOfWeek);
             serviceSqlArray = connection.createArrayOf("TEXT", serviceTypeMap.keySet().toArray());
 
             List<BusStop> busStopList = createTopologicalGraph(busStopOrigin, busStopDestination, time, date, connection);
@@ -60,74 +67,47 @@ public class Main {
     }
 
     /// Sets the static variable serviceTypeMap with the serviceIDs that run on the user requested date
-    public static void setSchedules(Connection connection, int date){
+    public static void setSchedules(Connection connection, int date, String dayOfWeek){
         try{
 
             // get all service_ids for a given date
-            String sqlStatement = "SELECT * FROM calendar_dates WHERE date = ?";
-            PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
-            preparedStatement.setInt(1,date);
-            ResultSet resultSet = preparedStatement.executeQuery();
-
-            // This may not be needed. But this is getting the weekdays the serviceId is relevant for
-            while (resultSet.next()){
-
-                // get weekday of services for that serviceId
-                String serviceId = resultSet.getString("service_id");
-                sqlStatement = "SELECT * FROM calendar WHERE service_id = ?";
-                preparedStatement = connection.prepareStatement(sqlStatement);
-                preparedStatement.setString(1, serviceId);
-                ResultSet resultSet2 = preparedStatement.executeQuery();
-
-                while (resultSet2.next()){
-                    ServiceType serviceType = new ServiceType(
-                            resultSet2.getBoolean("monday"),
-                            resultSet2.getBoolean("tuesday"),
-                            resultSet2.getBoolean("wednesday"),
-                            resultSet2.getBoolean("thursday"),
-                            resultSet2.getBoolean("friday"),
-                            resultSet2.getBoolean("saturday"),
-                            resultSet2.getBoolean("sunday"),
-                            date
-                    );
-                    serviceTypeMap.putIfAbsent(resultSet.getString("service_id"),serviceType);
-                }
-
-
-            }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static void setTrilSchedule(String type, int date, Connection connection){
-        try {
             String sqlStatement = "SELECT * FROM calendar";
             PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
             ResultSet resultSet = preparedStatement.executeQuery();
 
             while (resultSet.next()){
+                // get weekday of services for that serviceId
                 String serviceId = resultSet.getString("service_id");
-                if(serviceId.toUpperCase().contains("TRIL") && serviceId.toUpperCase().contains(type.toUpperCase())){
-                    ServiceType serviceType = new ServiceType(
-                            resultSet.getBoolean("monday"),
-                            resultSet.getBoolean("tuesday"),
-                            resultSet.getBoolean("wednesday"),
-                            resultSet.getBoolean("thursday"),
-                            resultSet.getBoolean("friday"),
-                            resultSet.getBoolean("saturday"),
-                            resultSet.getBoolean("sunday"),
-                            date
-                    );
-                    serviceTypeMap.putIfAbsent(serviceId,serviceType);
-                    return;
+                int serviceStartDate = resultSet.getInt("start_date");
+                int serviceEndDate = resultSet.getInt("end_date");
+                boolean serviceDayOfWeek = resultSet.getBoolean(dayOfWeek.toLowerCase());
+
+                if(serviceDayOfWeek && serviceStartDate <= date && date <= serviceEndDate){
+                    serviceTypeMap.putIfAbsent(resultSet.getString("service_id"), true);
                 }
             }
+            sqlStatement = "SELECT * FROM calendar_dates WHERE date = ?";
+            preparedStatement = connection.prepareStatement(sqlStatement);
+            preparedStatement.setInt(1, date);
+            resultSet = preparedStatement.executeQuery();
+
+            while(resultSet.next()){
+                int exceptionType = resultSet.getInt("exception_type");
+                String serviceExceptionId = resultSet.getString("service_id");
+                if(exceptionType == 2){
+                    serviceTypeMap.remove(serviceExceptionId);
+                }
+                else {
+                    serviceTypeMap.putIfAbsent(serviceExceptionId, true);
+                }
+            }
+
+
+
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
-
 
     /// Prints compatible dates available in the database, mainly used for UI
     public static List<Integer> getAvailableDates(){
@@ -504,6 +484,7 @@ public class Main {
                 }
             }
 
+            // sets start and end stops for each route
             for(BusStop busStop : busStopList){
                 if(transfers.isEmpty()){
                     transfers.add(busStop);

@@ -38,9 +38,8 @@ function fetchAPIData(){
     var busStopDest = document.getElementById("busStopDest").value;
     var time = document.getElementById("time").value;
     var date = document.getElementById("dates").value
-    var weekDayType = document.getElementById("weekDayType").value;
 
-    document.getElementById("messageBox").textContent = "busStopOrigin: " + busStopOrigin + ", busStopDest:" + busStopDest + ", time:" + time + ", date:" + date + ", weekDayType:" + weekDayType;
+    document.getElementById("messageBox").textContent = "busStopOrigin: " + busStopOrigin + ", busStopDest:" + busStopDest + ", time:" + time + ", date:" + date;
 
     var debugMode = document.getElementById("debugMode").checked;
     var urlMapping;
@@ -51,7 +50,7 @@ function fetchAPIData(){
         urlMapping = "getRoute"
     }
 
-    var apiUrl = "http://localhost:8080/" + urlMapping + "?busStopOrigin=" + busStopOrigin + "&busStopDest=" + busStopDest + "&time=" + time + "&date=" + date + "&weekDayType=" + weekDayType;
+    var apiUrl = "http://localhost:8080/" + urlMapping + "?busStopOrigin=" + busStopOrigin + "&busStopDest=" + busStopDest + "&time=" + time + "&date=" + date;
 
     fetch(apiUrl)
     .then(function(response){

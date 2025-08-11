@@ -15,8 +15,8 @@ public class ApiController {
 
     //localhost:8080/getRoute?busStopOrigin=7851&busStopDest=3052&time=09:45:00&date=20250715&weekDayType=WEEKDAY
     @GetMapping("/getRoute")
-    public List<BusStopWeb> getRoute(@RequestParam String busStopOrigin, @RequestParam String busStopDest, @RequestParam String time, @RequestParam int date, @RequestParam String weekDayType){
-        return Main.runProgram(busStopOrigin, busStopDest, time, date, weekDayType);
+    public List<BusStopWeb> getRoute(@RequestParam String busStopOrigin, @RequestParam String busStopDest, @RequestParam String time, @RequestParam int date){
+        return Main.runProgram(busStopOrigin, busStopDest, time, date);
     }
 
     @GetMapping("/getDates")
@@ -25,7 +25,7 @@ public class ApiController {
     }
 
     @GetMapping("/apitest")
-    public List<BusStopWeb> apitest(@RequestParam String busStopOrigin, @RequestParam String busStopDest, @RequestParam String time, @RequestParam int date, @RequestParam String weekDayType){
+    public List<BusStopWeb> apitest(@RequestParam String busStopOrigin, @RequestParam String busStopDest, @RequestParam String time, @RequestParam int date){
         List<BusStopWeb> busStopWebList = Arrays.asList(
                 new BusStopWeb("10737","Walking","Walking","10:54:00","10738",45.384998,-75.696465),
                 new BusStopWeb("10738","23078090","10","10:52:00","10146",45.385485,-75.694867),
