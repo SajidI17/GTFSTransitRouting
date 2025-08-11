@@ -4,8 +4,6 @@ import java.text.SimpleDateFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.time.*;
-import com.opencsv.CSVWriter;
-import java.io.FileWriter;
 import java.util.Date;
 
 // Monday - 0, Sunday - 7
@@ -446,20 +444,6 @@ public class Main {
             throw new RuntimeException(e);
         }
         return busStopList;
-    }
-
-    public static void createResultCSVFile(List<String[]> dataList, String fileName){
-        String fileNamePath = "./" + fileName + ".csv";
-        try{
-            CSVWriter writer = new CSVWriter(new FileWriter(fileNamePath));
-            String[] headerLine = {"stopCodeId", "tripId", "routeId", "arrivalTime", "previousStopId", "latTo", "lonTo", "latFrom", "lonFrom"};
-            writer.writeNext(headerLine);
-            writer.writeAll(dataList);
-            writer.close();
-
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
     }
 
 
