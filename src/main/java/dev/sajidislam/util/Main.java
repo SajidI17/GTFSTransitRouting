@@ -25,7 +25,7 @@ public class Main {
         //3052 - parliament
         //3062 - carleton
         long startTime = System.nanoTime();
-        List<BusStopWeb> busStopList = runProgram("1278", "3062","09:45:00", 20250715);
+        List<BusStopWeb> busStopList = runProgram("7851", "1278","09:45:00", 20250715);
 
         long endTime = System.nanoTime();
         long totalRunTime = (endTime - startTime) / 1000000;
@@ -160,13 +160,14 @@ public class Main {
 
             //get all buses leaving a particular stop within x minutes of time AND has the correct serviceID
             //String sqlStatement = "SELECT * FROM stop_times WHERE stop_Id = ? AND arrival_time > (?::interval) AND arrival_time <= (?::interval + INTERVAL '"+ minutes + " minutes') AND NOT (trip_id = ANY(?))";
-            String sqlStatement = "SELECT * FROM stop_times as s INNER JOIN trips ON s.trip_id = trips.trip_id WHERE s.stop_Id = ? AND s.arrival_time > (?::interval) AND s.arrival_time <= (?::interval + INTERVAL '" + minutes + " minutes') AND NOT (s.trip_id = ANY(?)) AND (trips.service_id = ANY(?))";
+            String sqlStatement = "SELECT * FROM stop_times as s INNER JOIN trips ON s.trip_id = trips.trip_id WHERE s.stop_Id = ? AND s.arrival_time > (?::interval) AND s.arrival_time <= (?::interval + INTERVAL '1 minute' * ?) AND NOT (s.trip_id = ANY(?)) AND (trips.service_id = ANY(?))";
             PreparedStatement preparedStatement = connection.prepareStatement(sqlStatement);
             preparedStatement.setString(1,busStopId);
             preparedStatement.setObject(2, time);
             preparedStatement.setObject(3, time);
-            preparedStatement.setArray(4, tripsSqlArr);
-            preparedStatement.setArray(5, serviceSqlArray);
+            preparedStatement.setInt(4, minutes);
+            preparedStatement.setArray(5, tripsSqlArr);
+            preparedStatement.setArray(6, serviceSqlArray);
             ResultSet resultSet = preparedStatement.executeQuery();
 
             while (resultSet.next()) {
@@ -407,14 +408,13 @@ public class Main {
             findTransfers(busStopUpdate, connection);
 
 
-            boolean routeNotFoundCheck = true;
-            for(int i = 0;i < 2; i++){
+            for(int i = 0;i < 3; i++){
                 Map<String, BusStop> tempBusList = new HashMap<>();
                 //for each bus stop added to graph, find if any of the bus stops has a trip not yet added to the graph
                 List<BusRecord> tempBusArrivals = new ArrayList<>();
                 for (BusStop busStop : busStopUpdate.values()){
                     //get all departing buses from a bus stop recently added to graph
-                    tempBusArrivals.addAll(getAllDepartingBusses(busStop.stopCodeId, busStop.arrivalTime, 15, connection));
+                    tempBusArrivals.addAll(getAllDepartingBusses(busStop.stopCodeId, busStop.arrivalTime, 20, connection));
                 }
                 //add bus stops to graph, maintain a list containing bus stops added to the graph
                 visitingBusStops(tempBusArrivals, tempBusList, connection);
@@ -423,10 +423,9 @@ public class Main {
 
                 busStopUpdate = tempBusList;
 
-                //better way to do this, but if the route was not found yet, try searching one more time
-                if(!(busNetwork.doesNodeExist(busStopDestinationId)) && routeNotFoundCheck && i == 1){
-                    i = 0;
-                    routeNotFoundCheck = false;
+                //if the route was found then exit, otherwise try searching one more round
+                if((busNetwork.doesNodeExist(busStopDestinationId)) && i == 1){
+                    break;
                 }
             }
 

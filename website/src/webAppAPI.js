@@ -1,4 +1,5 @@
 var map;
+var overlay;
 
 window.onload = function(){
     pageLoad();
@@ -12,6 +13,7 @@ function pageLoad(){
     });
     map = L.map('map').setView([45.414, -75.715], 13);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
+    overlay = L.layerGroup().addTo(map);
 
     var getDatesAPIUrl = "http://localhost:8080/getDates"
     fetch(getDatesAPIUrl)
@@ -34,6 +36,8 @@ function pageLoad(){
 }
 
 function fetchAPIData(){
+    overlay.clearLayers();
+
     var busStopOrigin = document.getElementById("busStopOrigin").value;
     var busStopDest = document.getElementById("busStopDest").value;
     var time = document.getElementById("time").value;
@@ -119,14 +123,14 @@ function fetchAPIData(){
             var lat = data[i].latPoint;
             var lon = data[i].lonPoint;
 
-            var point = L.marker([data[i].latPoint, data[i].lonPoint]).addTo(map);
+            var point = L.marker([data[i].latPoint, data[i].lonPoint]).addTo(overlay);
 
             var stringToolTip = "StopCode = " + data[i].stopCodeId + ", Route = " + data[i].routeId + ", Time = " + data[i].arrivalTime
             point.bindTooltip(stringToolTip, {direction: 'top'});
 
             latAndLon.push([lat,lon]);
         }
-        var route = L.polyline(latAndLon).addTo(map);
+        var route = L.polyline(latAndLon).addTo(overlay);
         document.getElementById("routeResult").innerHTML = resultHTML;
         
     })
