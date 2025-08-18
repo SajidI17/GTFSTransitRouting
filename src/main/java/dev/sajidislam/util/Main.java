@@ -24,16 +24,12 @@ public class Main {
         //0835
         //3052 - parliament
         //3062 - carleton
-        long startTime = System.nanoTime();
         List<BusStopWeb> busStopList = runProgram("7851", "1278","09:45:00", 20250715);
-
-        long endTime = System.nanoTime();
-        long totalRunTime = (endTime - startTime) / 1000000;
-        System.out.println("\nTOTAL RUNNING TIME OF ALGORITHM: " + totalRunTime + " milliseconds");
     }
 
     public static List<BusStopWeb> runProgram(String busStopOrigin, String busStopDestination, String time, int date){
 
+        long startTime = System.nanoTime();
         serviceTypeMap = new HashMap<>();
         busNetwork = new Graph();
         excludeTripIds = new ArrayList<>();
@@ -57,11 +53,15 @@ public class Main {
             }
             List<BusStopWeb> busStopWebList = convertForWeb(optimizeBusStopList, connection);
             connection.close();
+            long endTime = System.nanoTime();
+            long totalRunTime = (endTime - startTime) / 1000000;
+            System.out.println("\nTOTAL RUNNING TIME OF ALGORITHM: " + totalRunTime + " milliseconds");
             return busStopWebList;
 
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+
     }
 
     /// Sets the static variable serviceTypeMap with the serviceIDs that run on the user requested date
@@ -511,6 +511,14 @@ public class Main {
                 if(resultSet.next()){
                     lat = resultSet.getDouble("stop_lat");
                     lon = resultSet.getDouble("stop_lon");
+                }
+
+                sqlStatement = "SELECT * FROM stops WHERE stop_id = ?";
+                preparedStatement = connection.prepareStatement(sqlStatement);
+                preparedStatement.setString(1,busStop.stopCodeId);
+                resultSet = preparedStatement.executeQuery();
+                if(resultSet.next()){
+                    busStop.stopCodeId = resultSet.getString("stop_code");
                 }
                 busStopWebList.add(new BusStopWeb(busStop, lat, lon));
             }
