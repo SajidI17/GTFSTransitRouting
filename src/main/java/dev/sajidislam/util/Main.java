@@ -6,9 +6,6 @@ import java.util.*;
 import java.time.*;
 import java.util.Date;
 
-// Monday - 0, Sunday - 7
-//todo: convert string time to java LocalTime
-
 public class Main {
     private static final String URL = "jdbc:postgresql://localhost:5432/OCDatabase"; //Change OCGTFS to the name of the database you have
     private static final String USERNAME = "postgres";
@@ -26,7 +23,7 @@ public class Main {
         //3062 - carleton
         List<BusStopWeb> busStopList = runProgram("7851", "1278","09:45:00", 20250715);
     }
-
+    /// Main function to use the GTFS Transit Routing application
     public static List<BusStopWeb> runProgram(String busStopOrigin, String busStopDestination, String time, int date){
 
         long startTime = System.nanoTime();
@@ -207,6 +204,8 @@ public class Main {
         return result;
     }
 
+    /// Given a list of BusRecords, attempts to add stops it visits to the graph
+    /// Any bus stop added or updated is saved to the busStopUpdate HashMap
     public static Map<String, BusStop> visitingBusStops(List<BusRecord> busRecordList, Map<String, BusStop> busStopUpdate, Connection connection){
         try {
             for (BusRecord busRecord : busRecordList){
@@ -263,6 +262,8 @@ public class Main {
         return busStopUpdate;
     }
 
+    /// Will check if the curStop can be added to the graph, if so add it to the graph
+    /// Only adds if it is the fastest way to get to curStop
     public static boolean graphAddBusStopCheck(BusStop prevStop, BusStop curStop){
         //if the curStop does not exist, then can create an edge to curStop
         //as curStop did not exist in graph, it did not have any incoming edges, thus edge can be added without issue
@@ -281,7 +282,6 @@ public class Main {
             //get the current nodes saved in the graph
             BusStop currentStop = busNetwork.getBusStop(curStop.stopCodeId);
 
-            //todo: this is a temporarily fix, accounting for first BusStop which would have no previousStopId set
             if(currentStop.previousStopId == null){
                 return false;
             }
@@ -310,7 +310,7 @@ public class Main {
     }
 
 
-
+    /// converts a record from the stop_times table to the BusStop object
     public static BusStop convertToBusStopNode(ResultSet resultSet, Connection connection){
         BusStop busStop = null;
         try{
@@ -326,6 +326,7 @@ public class Main {
         return busStop;
     }
 
+    /// returns the difference in seconds between two times
     public static long stringTimeDifferences(String time1, String time2){
         LocalTime t1 = LocalTime.parse(time1);
         LocalTime t2 = LocalTime.parse(time2);

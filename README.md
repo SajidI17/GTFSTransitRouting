@@ -29,7 +29,7 @@ Before the application can be run, setup will be required to setup database
 3. Run [index.html](https://github.com/SajidI17/GTFSTransitRouting/blob/main/website/index.html) inside the websites folder to interact with the application
 
 
-## Libaries Used
+## Libraries Used
 
 ### Python
 - psycopg2: For connection to the database with python
